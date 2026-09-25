@@ -3,15 +3,20 @@ import { useSQLiteContext } from 'expo-sqlite';
 import { CategoriesRepository } from '../database/categoriesRepo';
 import { TransactionsRepository } from '../database/transactionsRepo';
 import { BackupRepository } from '../database/backupRepo';
+import { SettingsRepository } from '../database/settingsRepo';
+import { RecurringRepository } from '../database/recurringRepo';
 import { ReconciliationService } from '../services/reconciliationService';
 import { Categoria, Transacao, ResumoFinanceiro, RankingCategoria } from '../types';
-import { getMesAnoAtualIso } from '../utils/formatters';
+import { getMesAnoAtualIso, formatarMoeda } from '../utils/formatters';
+import { AppHaptics } from '../utils/haptics';
 
 interface AppContextType {
   // Repositórios
   categoriesRepo: CategoriesRepository;
   transactionsRepo: TransactionsRepository;
   backupRepo: BackupRepository;
+  settingsRepo: SettingsRepository;
+  recurringRepo: RecurringRepository;
   reconciliationService: ReconciliationService;
 
   // Estado
@@ -25,6 +30,17 @@ interface AppContextType {
   rankingGastos: RankingCategoria[];
   transacoesRecentes: Transacao[];
   carregarDadosPainel: () => Promise<void>;
+
+  // Modo Privacidade
+  modoPrivacidade: boolean;
+  alternarModoPrivacidade: () => void;
+  formatarValor: (valor: number) => string;
+
+  // Biometria
+  biometriaHabilitada: boolean;
+  setBiometriaHabilitada: (habilitar: boolean) => Promise<void>;
+  autenticado: boolean;
+  setAutenticado: (autenticado: boolean) => void;
 
   // Ações de modal
   modalTransacaoAberto: boolean;
@@ -41,6 +57,10 @@ interface AppContextType {
   abrirModalEditarCategoria: (categoria: Categoria) => void;
   fecharModalCategoria: () => void;
 
+  modalRecorrentesAberto: boolean;
+  abrirModalRecorrentes: () => void;
+  fecharModalRecorrentes: () => void;
+
   // Notificador de atualização
   notificarMudancaDados: () => Promise<void>;
 }
@@ -53,6 +73,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [categoriesRepo] = useState(() => new CategoriesRepository(db));
   const [transactionsRepo] = useState(() => new TransactionsRepository(db));
   const [backupRepo] = useState(() => new BackupRepository(db));
+  const [settingsRepo] = useState(() => new SettingsRepository(db));
+  const [recurringRepo] = useState(() => new RecurringRepository(db));
   const [reconciliationService] = useState(() => new ReconciliationService(transactionsRepo));
 
   const [mesSelecionado, setMesSelecionado] = useState<string>(getMesAnoAtualIso());
@@ -61,6 +83,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [rankingGastos, setRankingGastos] = useState<RankingCategoria[]>([]);
   const [transacoesRecentes, setTransacoesRecentes] = useState<Transacao[]>([]);
 
+  // Privacidade e Biometria
+  const [modoPrivacidade, setModoPrivacidade] = useState(false);
+  const [biometriaHabilitada, setBiometriaHabilitadaState] = useState(false);
+  const [autenticado, setAutenticado] = useState(true); // Começa true até carregar a config
+
   // Estados dos modais globais
   const [modalTransacaoAberto, setModalTransacaoAberto] = useState(false);
   const [transacaoParaEdicao, setTransacaoParaEdicao] = useState<Transacao | null>(null);
@@ -68,6 +95,42 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const [modalCategoriaAberto, setModalCategoriaAberto] = useState(false);
   const [categoriaParaEdicao, setCategoriaParaEdicao] = useState<Categoria | null>(null);
+
+  const [modalRecorrentesAberto, setModalRecorrentesAberto] = useState(false);
+
+  // Carrega configurações iniciais (Privacidade e Biometria)
+  useEffect(() => {
+    (async () => {
+      const priv = await settingsRepo.obterBooleano('modo_privacidade', false);
+      setModoPrivacidade(priv);
+
+      const bio = await settingsRepo.obterBooleano('biometria_habilitada', false);
+      setBiometriaHabilitadaState(bio);
+      if (bio) {
+        setAutenticado(false); // Exige desbloqueio inicial
+      }
+    })();
+  }, [settingsRepo]);
+
+  const alternarModoPrivacidade = async () => {
+    AppHaptics.toqueSelecao();
+    const novoValor = !modoPrivacidade;
+    setModoPrivacidade(novoValor);
+    await settingsRepo.definirBooleano('modo_privacidade', novoValor);
+  };
+
+  const setBiometriaHabilitada = async (habilitar: boolean) => {
+    AppHaptics.toqueLeve();
+    setBiometriaHabilitadaState(habilitar);
+    await settingsRepo.definirBooleano('biometria_habilitada', habilitar);
+  };
+
+  const formatarValor = (valor: number): string => {
+    if (modoPrivacidade) {
+      return 'R$ •••••';
+    }
+    return formatarMoeda(valor);
+  };
 
   const carregarCategorias = useCallback(async () => {
     try {
@@ -80,6 +143,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const carregarDadosPainel = useCallback(async () => {
     try {
+      // Processa automaticamente os lançamentos fixos recorrentes para o mês selecionado
+      await recurringRepo.processarRecorrentesDoMes(mesSelecionado);
+
       const [resumo, ranking, recentes] = await Promise.all([
         transactionsRepo.obterResumoMes(mesSelecionado),
         transactionsRepo.obterRankingCategorias(mesSelecionado, 'despesa'),
@@ -91,7 +157,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     } catch (e) {
       console.error('Erro ao carregar painel:', e);
     }
-  }, [transactionsRepo, mesSelecionado]);
+  }, [transactionsRepo, recurringRepo, mesSelecionado]);
 
   const notificarMudancaDados = useCallback(async () => {
     await Promise.all([carregarCategorias(), carregarDadosPainel()]);
@@ -107,18 +173,21 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   // Controles do modal de transação
   const abrirModalNovoLancamento = () => {
+    AppHaptics.toqueLeve();
     setTransacaoParaEdicao(null);
     setTransacaoParaDuplicacao(null);
     setModalTransacaoAberto(true);
   };
 
   const abrirModalEditarLancamento = (transacao: Transacao) => {
+    AppHaptics.toqueLeve();
     setTransacaoParaDuplicacao(null);
     setTransacaoParaEdicao(transacao);
     setModalTransacaoAberto(true);
   };
 
   const abrirModalDuplicarLancamento = (transacao: Transacao) => {
+    AppHaptics.toqueLeve();
     setTransacaoParaEdicao(null);
     setTransacaoParaDuplicacao(transacao);
     setModalTransacaoAberto(true);
@@ -132,11 +201,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   // Controles do modal de categoria
   const abrirModalNovaCategoria = () => {
+    AppHaptics.toqueLeve();
     setCategoriaParaEdicao(null);
     setModalCategoriaAberto(true);
   };
 
   const abrirModalEditarCategoria = (categoria: Categoria) => {
+    AppHaptics.toqueLeve();
     setCategoriaParaEdicao(categoria);
     setModalCategoriaAberto(true);
   };
@@ -146,21 +217,43 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setCategoriaParaEdicao(null);
   };
 
+  // Controles do modal de fixos recorrentes
+  const abrirModalRecorrentes = () => {
+    AppHaptics.toqueLeve();
+    setModalRecorrentesAberto(true);
+  };
+
+  const fecharModalRecorrentes = () => {
+    setModalRecorrentesAberto(false);
+  };
+
   return (
     <AppContext.Provider
       value={{
         categoriesRepo,
         transactionsRepo,
         backupRepo,
+        settingsRepo,
+        recurringRepo,
         reconciliationService,
         mesSelecionado,
-        setMesSelecionado,
+        setMesSelecionado: (m) => {
+          AppHaptics.toqueSelecao();
+          setMesSelecionado(m);
+        },
         categorias,
         carregarCategorias,
         resumoMes,
         rankingGastos,
         transacoesRecentes,
         carregarDadosPainel,
+        modoPrivacidade,
+        alternarModoPrivacidade,
+        formatarValor,
+        biometriaHabilitada,
+        setBiometriaHabilitada,
+        autenticado,
+        setAutenticado,
         modalTransacaoAberto,
         transacaoParaEdicao,
         transacaoParaDuplicacao,
@@ -173,6 +266,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         abrirModalNovaCategoria,
         abrirModalEditarCategoria,
         fecharModalCategoria,
+        modalRecorrentesAberto,
+        abrirModalRecorrentes,
+        fecharModalRecorrentes,
         notificarMudancaDados,
       }}
     >

@@ -37,6 +37,10 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
     abrirModalDuplicarLancamento,
     transactionsRepo,
     notificarMudancaDados,
+    modoPrivacidade,
+    alternarModoPrivacidade,
+    formatarValor,
+    abrirModalRecorrentes,
   } = useApp();
 
   const [atualizando, setAtualizando] = React.useState(false);
@@ -62,7 +66,16 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
       {/* Card Principal de Saldo do Mês */}
       <View style={[styles.cardSaldo, { backgroundColor: theme.card, borderColor: theme.cardBorder }]}>
         <View style={styles.topoCardSaldo}>
-          <Text style={[styles.labelSaldo, { color: theme.textSecondary }]}>Saldo do Mês</Text>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+            <Text style={[styles.labelSaldo, { color: theme.textSecondary }]}>Saldo do Mês</Text>
+            <TouchableOpacity onPress={alternarModoPrivacidade} style={{ padding: 4 }}>
+              <Ionicons
+                name={modoPrivacidade ? 'eye-off-outline' : 'eye-outline'}
+                size={18}
+                color={theme.primary}
+              />
+            </TouchableOpacity>
+          </View>
           <View style={[styles.badgeOffline, { backgroundColor: theme.primaryLight }]}>
             <Ionicons name="shield-checkmark" size={13} color={theme.primary} />
             <Text style={[styles.textoOffline, { color: theme.primary }]}>100% Offline</Text>
@@ -75,7 +88,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
             { color: resumoMes.saldo >= 0 ? theme.text : theme.danger },
           ]}
         >
-          {formatarMoeda(resumoMes.saldo)}
+          {formatarValor(resumoMes.saldo)}
         </Text>
 
         <View style={styles.divisor} />
@@ -90,7 +103,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
               <Text style={[styles.labelMetrica, { color: theme.textSecondary }]}>Receitas</Text>
             </View>
             <Text style={[styles.valorMetrica, { color: theme.success }]}>
-              {formatarMoeda(resumoMes.receitas)}
+              {formatarValor(resumoMes.receitas)}
             </Text>
           </View>
 
@@ -103,7 +116,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
               <Text style={[styles.labelMetrica, { color: theme.textSecondary }]}>Despesas</Text>
             </View>
             <Text style={[styles.valorMetrica, { color: theme.danger }]}>
-              {formatarMoeda(resumoMes.despesas)}
+              {formatarValor(resumoMes.despesas)}
             </Text>
           </View>
         </View>
@@ -210,6 +223,26 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
           </Text>
         </View>
         <Ionicons name="arrow-forward-circle" size={24} color={theme.primary} />
+      </TouchableOpacity>
+
+      {/* Atalho para Contas e Rendas Fixas (Recorrentes) */}
+      <TouchableOpacity
+        activeOpacity={0.85}
+        onPress={abrirModalRecorrentes}
+        style={[styles.bannerExtrato, { backgroundColor: theme.card, borderColor: theme.cardBorder, marginTop: 10 }]}
+      >
+        <View style={[styles.iconeExtrato, { backgroundColor: theme.warningLight }]}>
+          <Ionicons name="repeat-outline" size={22} color={theme.warning} />
+        </View>
+        <View style={styles.textosExtrato}>
+          <Text style={[styles.tituloExtrato, { color: theme.text }]}>
+            Contas & Rendas Fixas
+          </Text>
+          <Text style={[styles.subtituloExtrato, { color: theme.textSecondary }]}>
+            Salário, aluguel, internet (automáticos todo mês)
+          </Text>
+        </View>
+        <Ionicons name="chevron-forward-circle" size={24} color={theme.warning} />
       </TouchableOpacity>
 
       {/* Lançamentos Recentes */}

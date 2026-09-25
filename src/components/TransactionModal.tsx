@@ -24,6 +24,8 @@ import {
   formatarDataBr,
 } from '../utils/formatters';
 import { CategoryModal } from './CategoryModal';
+import { AppHaptics } from '../utils/haptics';
+import { NotificationService } from '../services/notificationService';
 
 const OPCOES_PARCELAS = [2, 3, 4, 5, 6, 8, 10, 12, 18, 24];
 
@@ -49,6 +51,7 @@ export const TransactionModal: React.FC<TransactionModalProps> = ({
   const [dataIso, setDataIso] = useState<string>(getDataHojeIso());
   const [descricao, setDescricao] = useState('');
   const [salvando, setSalvando] = useState(false);
+  const [lembreteAtivo, setLembreteAtivo] = useState(false);
 
   // Parcelamento
   const [isParcelado, setIsParcelado] = useState(false);
@@ -61,6 +64,7 @@ export const TransactionModal: React.FC<TransactionModalProps> = ({
 
   useEffect(() => {
     if (visivel) {
+      setLembreteAtivo(false);
       if (transacaoParaEdicao) {
         setTipo(transacaoParaEdicao.tipo);
         const centavos = Math.round(transacaoParaEdicao.valor * 100).toString();
@@ -99,6 +103,7 @@ export const TransactionModal: React.FC<TransactionModalProps> = ({
   }, [visivel, transacaoParaEdicao, transacaoParaDuplicacao, categorias]);
 
   const alternarTipo = (novoTipo: TipoTransacao) => {
+    AppHaptics.toqueSelecao();
     setTipo(novoTipo);
     if (novoTipo === 'receita') {
       setIsParcelado(false);
@@ -164,6 +169,15 @@ export const TransactionModal: React.FC<TransactionModalProps> = ({
         });
       }
 
+      if (lembreteAtivo && tipo === 'despesa') {
+        await NotificationService.agendarLembreteVencimento(
+          descricao.trim() || 'Despesa',
+          valorNumerico,
+          dataIso
+        );
+      }
+
+      await AppHaptics.toqueSucesso();
       await notificarMudancaDados();
       onFechar();
     } catch (e: any) {
@@ -272,7 +286,10 @@ export const TransactionModal: React.FC<TransactionModalProps> = ({
                   </View>
                   <Switch
                     value={isParcelado}
-                    onValueChange={setIsParcelado}
+                    onValueChange={(val) => {
+                      AppHaptics.toqueSelecao();
+                      setIsParcelado(val);
+                    }}
                     thumbColor={isParcelado ? theme.primary : '#F4F4F5'}
                     trackColor={{ false: '#71717A', true: theme.primaryLight }}
                   />
@@ -288,7 +305,10 @@ export const TransactionModal: React.FC<TransactionModalProps> = ({
                       {OPCOES_PARCELAS.map((num) => (
                         <TouchableOpacity
                           key={num}
-                          onPress={() => setNumeroParcelas(num)}
+                          onPress={() => {
+                            AppHaptics.toqueLeve();
+                            setNumeroParcelas(num);
+                          }}
                           style={[
                             styles.chipParcela,
                             {
@@ -351,7 +371,10 @@ export const TransactionModal: React.FC<TransactionModalProps> = ({
                 return (
                   <TouchableOpacity
                     key={cat.id}
-                    onPress={() => setCategoriaId(cat.id)}
+                    onPress={() => {
+                      AppHaptics.toqueLeve();
+                      setCategoriaId(cat.id);
+                    }}
                     style={[
                       styles.chipCategoria,
                       {
@@ -384,7 +407,10 @@ export const TransactionModal: React.FC<TransactionModalProps> = ({
             </Text>
             <View style={styles.linhaBotoesData}>
               <TouchableOpacity
-                onPress={() => setDataIso(getDataHojeIso())}
+                onPress={() => {
+                  AppHaptics.toqueLeve();
+                  setDataIso(getDataHojeIso());
+                }}
                 style={[
                   styles.botaoDataRapida,
                   {
@@ -404,7 +430,10 @@ export const TransactionModal: React.FC<TransactionModalProps> = ({
               </TouchableOpacity>
 
               <TouchableOpacity
-                onPress={() => setDataIso(getDataOntemIso())}
+                onPress={() => {
+                  AppHaptics.toqueLeve();
+                  setDataIso(getDataOntemIso());
+                }}
                 style={[
                   styles.botaoDataRapida,
                   {
@@ -439,6 +468,30 @@ export const TransactionModal: React.FC<TransactionModalProps> = ({
               onChangeText={setDescricao}
               maxLength={60}
             />
+
+            {/* Lembrete Local de Vencimento (apenas para despesas) */}
+            {tipo === 'despesa' && (
+              <View style={[styles.cardLembrete, { backgroundColor: theme.inputBg, borderColor: theme.inputBorder }]}>
+                <View style={styles.linhaToggleLembrete}>
+                  <View style={styles.infoTextoLembrete}>
+                    <Ionicons name="notifications-outline" size={18} color={theme.text} />
+                    <View style={{ marginLeft: 8 }}>
+                      <Text style={[styles.tituloLembrete, { color: theme.text }]}>Lembrar Vencimento?</Text>
+                      <Text style={[styles.subtituloLembrete, { color: theme.textSecondary }]}>Notificação local às 09:00 no dia</Text>
+                    </View>
+                  </View>
+                  <Switch
+                    value={lembreteAtivo}
+                    onValueChange={(val) => {
+                      AppHaptics.toqueSelecao();
+                      setLembreteAtivo(val);
+                    }}
+                    thumbColor={lembreteAtivo ? theme.primary : '#F4F4F5'}
+                    trackColor={{ false: '#71717A', true: theme.primaryLight }}
+                  />
+                </View>
+              </View>
+            )}
           </ScrollView>
 
           {/* Botão de Confirmação Rápida */}
@@ -657,6 +710,31 @@ const styles = StyleSheet.create({
     paddingHorizontal: 14,
     fontSize: 14,
     marginTop: 8,
+  },
+  cardLembrete: {
+    borderRadius: 14,
+    borderWidth: 1,
+    padding: 12,
+    marginTop: 12,
+  },
+  linhaToggleLembrete: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  infoTextoLembrete: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+    marginRight: 8,
+  },
+  tituloLembrete: {
+    fontSize: 14,
+    fontWeight: '700',
+  },
+  subtituloLembrete: {
+    fontSize: 11,
+    marginTop: 2,
   },
   botaoSalvar: {
     height: 54,

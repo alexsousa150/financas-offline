@@ -52,6 +52,22 @@ export async function inicializarBanco(db: SQLiteDatabase): Promise<void> {
       quantidade_lancamentos INTEGER NOT NULL
     );
 
+    CREATE TABLE IF NOT EXISTS configuracoes (
+      chave TEXT PRIMARY KEY,
+      valor TEXT NOT NULL
+    );
+
+    CREATE TABLE IF NOT EXISTS lancamentos_recorrentes (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      valor REAL NOT NULL,
+      tipo TEXT NOT NULL CHECK(tipo IN ('receita', 'despesa')),
+      categoria_id INTEGER NOT NULL REFERENCES categorias(id),
+      descricao TEXT,
+      dia_vencimento INTEGER NOT NULL,
+      ativo INTEGER DEFAULT 1,
+      ultimo_mes_gerado TEXT
+    );
+
     CREATE INDEX IF NOT EXISTS idx_transacoes_data ON transacoes(data);
     CREATE INDEX IF NOT EXISTS idx_transacoes_categoria ON transacoes(categoria_id);
     CREATE INDEX IF NOT EXISTS idx_transacoes_tipo ON transacoes(tipo);

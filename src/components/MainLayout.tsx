@@ -13,6 +13,9 @@ import { SettingsScreen } from '../screens/SettingsScreen';
 import { FloatingActionButton } from './FloatingActionButton';
 import { TransactionModal } from './TransactionModal';
 import { CategoryModal } from './CategoryModal';
+import { RecurringModal } from './RecurringModal';
+import { BiometricLockScreen } from './BiometricLockScreen';
+import { AppHaptics } from '../utils/haptics';
 
 export type TelaAtiva = 'inicio' | 'historico' | 'analise' | 'extrato' | 'categorias' | 'ajustes';
 
@@ -28,9 +31,19 @@ export const MainLayout: React.FC = () => {
     modalCategoriaAberto,
     categoriaParaEdicao,
     fecharModalCategoria,
+    modalRecorrentesAberto,
+    fecharModalRecorrentes,
+    biometriaHabilitada,
+    autenticado,
+    setAutenticado,
   } = useApp();
 
   const [telaAtiva, setTelaAtiva] = useState<TelaAtiva>('inicio');
+
+  const navegarPara = (novaTela: TelaAtiva) => {
+    AppHaptics.toqueSelecao();
+    setTelaAtiva(novaTela);
+  };
 
   return (
     <View style={[styles.container, { backgroundColor: theme.background, paddingTop: insets.top }]}>
@@ -43,9 +56,9 @@ export const MainLayout: React.FC = () => {
       <View style={styles.conteudoTela}>
         {telaAtiva === 'inicio' && (
           <HomeScreen
-            onNavegarParaHistorico={() => setTelaAtiva('historico')}
-            onNavegarParaAnalise={() => setTelaAtiva('analise')}
-            onNavegarParaImportacao={() => setTelaAtiva('extrato')}
+            onNavegarParaHistorico={() => navegarPara('historico')}
+            onNavegarParaAnalise={() => navegarPara('analise')}
+            onNavegarParaImportacao={() => navegarPara('extrato')}
           />
         )}
         {telaAtiva === 'historico' && <HistoryScreen />}
@@ -73,7 +86,7 @@ export const MainLayout: React.FC = () => {
       >
         <TouchableOpacity
           style={styles.tabItem}
-          onPress={() => setTelaAtiva('inicio')}
+          onPress={() => navegarPara('inicio')}
           activeOpacity={0.7}
         >
           <Ionicons
@@ -93,7 +106,7 @@ export const MainLayout: React.FC = () => {
 
         <TouchableOpacity
           style={styles.tabItem}
-          onPress={() => setTelaAtiva('historico')}
+          onPress={() => navegarPara('historico')}
           activeOpacity={0.7}
         >
           <Ionicons
@@ -113,7 +126,7 @@ export const MainLayout: React.FC = () => {
 
         <TouchableOpacity
           style={styles.tabItem}
-          onPress={() => setTelaAtiva('analise')}
+          onPress={() => navegarPara('analise')}
           activeOpacity={0.7}
         >
           <Ionicons
@@ -133,7 +146,7 @@ export const MainLayout: React.FC = () => {
 
         <TouchableOpacity
           style={styles.tabItem}
-          onPress={() => setTelaAtiva('extrato')}
+          onPress={() => navegarPara('extrato')}
           activeOpacity={0.7}
         >
           <Ionicons
@@ -153,7 +166,7 @@ export const MainLayout: React.FC = () => {
 
         <TouchableOpacity
           style={styles.tabItem}
-          onPress={() => setTelaAtiva('categorias')}
+          onPress={() => navegarPara('categorias')}
           activeOpacity={0.7}
         >
           <Ionicons
@@ -173,7 +186,7 @@ export const MainLayout: React.FC = () => {
 
         <TouchableOpacity
           style={styles.tabItem}
-          onPress={() => setTelaAtiva('ajustes')}
+          onPress={() => navegarPara('ajustes')}
           activeOpacity={0.7}
         >
           <Ionicons
@@ -206,6 +219,17 @@ export const MainLayout: React.FC = () => {
         categoriaParaEdicao={categoriaParaEdicao}
         onFechar={fecharModalCategoria}
       />
+
+      {/* Modal de Gastos e Rendas Fixas Recorrentes */}
+      <RecurringModal
+        visivel={modalRecorrentesAberto}
+        onFechar={fecharModalRecorrentes}
+      />
+
+      {/* Tela de Bloqueio por Biometria se ativada e ainda não autenticado */}
+      {biometriaHabilitada && !autenticado && (
+        <BiometricLockScreen onAutenticado={() => setAutenticado(true)} />
+      )}
     </View>
   );
 };
