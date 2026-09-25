@@ -29,6 +29,9 @@ export class TransactionsRepository {
         t.descricao,
         t.conciliado,
         t.origem,
+        t.parcela_atual,
+        t.total_parcelas,
+        t.grupo_parcelamento_id,
         t.created_at,
         c.nome as categoria_nome,
         c.icone as categoria_icone,
@@ -81,6 +84,9 @@ export class TransactionsRepository {
         t.descricao,
         t.conciliado,
         t.origem,
+        t.parcela_atual,
+        t.total_parcelas,
+        t.grupo_parcelamento_id,
         t.created_at,
         c.nome as categoria_nome,
         c.icone as categoria_icone,
@@ -95,17 +101,88 @@ export class TransactionsRepository {
 
   async criar(transacao: Omit<Transacao, 'id'>): Promise<number> {
     const result = await this.db.runAsync(
-      `INSERT INTO transacoes (valor, tipo, categoria_id, data, descricao, conciliado, origem)
-       VALUES (?, ?, ?, ?, ?, ?, ?);`,
+      `INSERT INTO transacoes (valor, tipo, categoria_id, data, descricao, conciliado, origem, parcela_atual, total_parcelas, grupo_parcelamento_id)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?);`,
       transacao.valor,
       transacao.tipo,
       transacao.categoria_id,
       transacao.data,
       transacao.descricao || '',
       transacao.conciliado ? 1 : 0,
-      transacao.origem || 'manual'
+      transacao.origem || 'manual',
+      transacao.parcela_atual ?? null,
+      transacao.total_parcelas ?? null,
+      transacao.grupo_parcelamento_id ?? null
     );
     return Number(result.lastInsertRowId);
+  }
+
+  /**
+   * Cria uma compra parcelada em N vezes, distribuindo as parcelas mês a mês
+   */
+  async criarParcelado(
+    transacaoBase: Omit<Transacao, 'id'>,
+    numeroParcelas: number,
+    valorTotal: number
+  ): Promise<number[]> {
+    if (numeroParcelas <= 1) {
+      const id = await this.criar({ ...transacaoBase, valor: valorTotal });
+      return [id];
+    }
+
+    const valorParcelaBase = Math.floor((valorTotal / numeroParcelas) * 100) / 100;
+    // Ajusta o centavo na primeira parcela caso haja dízima periódica
+    const diferencaCentavos = Math.round((valorTotal - valorParcelaBase * numeroParcelas) * 100) / 100;
+    const primeiraParcelaValor = Math.round((valorParcelaBase + diferencaCentavos) * 100) / 100;
+
+    const grupoId = `parc_${Date.now()}_${Math.random().toString(36).substring(2, 8)}`;
+    const idsCriados: number[] = [];
+
+    const [anoStr, mesStr, diaStr] = transacaoBase.data.split('-');
+    let anoAtual = parseInt(anoStr, 10);
+    let mesAtual = parseInt(mesStr, 10);
+    const diaOriginal = parseInt(diaStr, 10);
+
+    const descricaoBase = transacaoBase.descricao ? transacaoBase.descricao.trim() : 'Compra Parcelada';
+
+    await this.db.withTransactionAsync(async () => {
+      for (let p = 1; p <= numeroParcelas; p++) {
+        // Calcula data da parcela (mês a mês)
+        let anoParcela = anoAtual;
+        let mesParcela = mesAtual + (p - 1);
+        while (mesParcela > 12) {
+          mesParcela -= 12;
+          anoParcela += 1;
+        }
+
+        // Garante que o dia existe no mês (ex: 31 de fevereiro vira 28 ou 29)
+        const ultimoDiaDoMes = new Date(anoParcela, mesParcela, 0).getDate();
+        const diaParcela = Math.min(diaOriginal, ultimoDiaDoMes);
+
+        const dataParcelaIso = `${anoParcela}-${String(mesParcela).padStart(2, '0')}-${String(diaParcela).padStart(2, '0')}`;
+        const valorDestaParcela = p === 1 ? primeiraParcelaValor : valorParcelaBase;
+        const descricaoComParcela = `${descricaoBase} (${p}/${numeroParcelas})`;
+
+        const result = await this.db.runAsync(
+          `INSERT INTO transacoes (valor, tipo, categoria_id, data, descricao, conciliado, origem, parcela_atual, total_parcelas, grupo_parcelamento_id)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?);`,
+          valorDestaParcela,
+          transacaoBase.tipo,
+          transacaoBase.categoria_id,
+          dataParcelaIso,
+          descricaoComParcela,
+          0,
+          transacaoBase.origem || 'manual',
+          p,
+          numeroParcelas,
+          grupoId
+        );
+
+        idsCriados.push(Number(result.lastInsertRowId));
+      }
+    });
+
+    return idsCriados;
   }
 
   async atualizar(id: number, transacao: Partial<Transacao>): Promise<void> {
@@ -140,6 +217,18 @@ export class TransactionsRepository {
       campos.push('origem = ?');
       params.push(transacao.origem);
     }
+    if (transacao.parcela_atual !== undefined) {
+      campos.push('parcela_atual = ?');
+      params.push(transacao.parcela_atual);
+    }
+    if (transacao.total_parcelas !== undefined) {
+      campos.push('total_parcelas = ?');
+      params.push(transacao.total_parcelas);
+    }
+    if (transacao.grupo_parcelamento_id !== undefined) {
+      campos.push('grupo_parcelamento_id = ?');
+      params.push(transacao.grupo_parcelamento_id);
+    }
 
     if (campos.length === 0) return;
 
@@ -148,7 +237,21 @@ export class TransactionsRepository {
     await this.db.runAsync(sql, ...params);
   }
 
-  async excluir(id: number): Promise<void> {
+  /**
+   * Exclui uma transação ou todo o grupo de parcelamento se solicitado
+   */
+  async excluir(id: number, excluirTodasDoGrupo: boolean = false): Promise<void> {
+    if (excluirTodasDoGrupo) {
+      const transacao = await this.obterPorId(id);
+      if (transacao && transacao.grupo_parcelamento_id) {
+        await this.db.runAsync(
+          'DELETE FROM transacoes WHERE grupo_parcelamento_id = ?;',
+          transacao.grupo_parcelamento_id
+        );
+        return;
+      }
+    }
+
     await this.db.runAsync('DELETE FROM transacoes WHERE id = ?;', id);
   }
 
@@ -168,9 +271,6 @@ export class TransactionsRepository {
     });
   }
 
-  /**
-   * Inserção em lote para importação atômica e rápida de extratos
-   */
   async inserirEmLote(transacoes: Omit<Transacao, 'id'>[]): Promise<number> {
     if (transacoes.length === 0) return 0;
 
@@ -178,15 +278,18 @@ export class TransactionsRepository {
     await this.db.withTransactionAsync(async () => {
       for (const t of transacoes) {
         await this.db.runAsync(
-          `INSERT INTO transacoes (valor, tipo, categoria_id, data, descricao, conciliado, origem)
-           VALUES (?, ?, ?, ?, ?, ?, ?);`,
+          `INSERT INTO transacoes (valor, tipo, categoria_id, data, descricao, conciliado, origem, parcela_atual, total_parcelas, grupo_parcelamento_id)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?);`,
           t.valor,
           t.tipo,
           t.categoria_id,
           t.data,
           t.descricao || '',
           t.conciliado ? 1 : 0,
-          t.origem || 'importado'
+          t.origem || 'importado',
+          t.parcela_atual ?? null,
+          t.total_parcelas ?? null,
+          t.grupo_parcelamento_id ?? null
         );
         totalInseridos++;
       }
@@ -195,9 +298,6 @@ export class TransactionsRepository {
     return totalInseridos;
   }
 
-  /**
-   * Resumo de receitas, despesas e saldo do mês selecionado
-   */
   async obterResumoMes(mesAno: string): Promise<ResumoFinanceiro> {
     const receitasResult = await this.db.getFirstAsync<{ total: number | null }>(
       `SELECT SUM(valor) as total FROM transacoes WHERE strftime('%Y-%m', data) = ? AND tipo = 'receita';`,
@@ -216,7 +316,7 @@ export class TransactionsRepository {
   }
 
   /**
-   * Ranking detalhado das categorias ("onde estou sangrando") com % do total e comparação com o mês anterior
+   * Ranking detalhado das categorias incluindo limites de gastos mensais e comparação anterior
    */
   async obterRankingCategorias(mesAno: string, tipo: TipoTransacao = 'despesa'): Promise<RankingCategoria[]> {
     const mesAnterior = getMesAnterior(mesAno);
@@ -229,12 +329,13 @@ export class TransactionsRepository {
     );
     const totalPeriodo = totalPeriodoResult?.total || 0;
 
-    // Gastos por categoria no mês atual
+    // Gastos por categoria no mês atual com limite mensal da categoria
     const gastosAtuais = await this.db.getAllAsync<{
       categoria_id: number;
       nome: string;
       cor: string;
       icone: string;
+      limite_mensal: number | null;
       total: number;
     }>(
       `SELECT 
@@ -242,6 +343,7 @@ export class TransactionsRepository {
          c.nome,
          c.cor,
          c.icone,
+         c.limite_mensal,
          SUM(t.valor) as total
        FROM transacoes t
        INNER JOIN categorias c ON t.categoria_id = c.id
@@ -281,6 +383,15 @@ export class TransactionsRepository {
         variacaoPercentual = ((item.total - totalAnt) / totalAnt) * 100;
       }
 
+      const limiteMensal = item.limite_mensal;
+      let percentualLimite: number | null = null;
+      let restanteLimite: number | null = null;
+
+      if (limiteMensal && limiteMensal > 0) {
+        percentualLimite = (item.total / limiteMensal) * 100;
+        restanteLimite = limiteMensal - item.total;
+      }
+
       return {
         categoriaId: item.categoria_id,
         nome: item.nome,
@@ -290,15 +401,13 @@ export class TransactionsRepository {
         percentual,
         totalMesAnterior: totalAnt,
         variacaoPercentual,
+        limiteMensal,
+        percentualLimite,
+        restanteLimite,
       };
     });
   }
 
-  /**
-   * Busca transações para verificação de conciliação bancária:
-   * Procura no banco se existe alguma transação com valor similar (+/- R$0.01)
-   * e data em um intervalo de tolerância de N dias.
-   */
   async buscarCorrespondenteConciliacao(
     dataIso: string,
     valor: number,

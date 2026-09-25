@@ -143,6 +143,55 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
         </TouchableOpacity>
       )}
 
+      {/* Alerta de Teto de Gastos Ultrapassado */}
+      {(() => {
+        const estouradas = rankingGastos.filter(
+          (c) =>
+            c.limiteMensal &&
+            c.limiteMensal > 0 &&
+            c.restanteLimite !== null &&
+            c.restanteLimite !== undefined &&
+            c.restanteLimite < 0
+        );
+        if (estouradas.length === 0) return null;
+        const primeira = estouradas[0];
+
+        return (
+          <TouchableOpacity
+            activeOpacity={0.85}
+            onPress={onNavegarParaAnalise}
+            style={[
+              styles.alertaSangria,
+              {
+                backgroundColor: theme.card,
+                borderColor: theme.warning,
+              },
+            ]}
+          >
+            <View style={[styles.iconeSangria, { backgroundColor: theme.warningLight }]}>
+              <Ionicons name="alert-circle" size={24} color={theme.warning} />
+            </View>
+            <View style={styles.textosSangria}>
+              <View style={styles.linhaTituloSangria}>
+                <Text style={[styles.tituloSangria, { color: theme.warning }]}>
+                  Teto de Gastos Estourado
+                </Text>
+                <Text style={[styles.percentualSangria, { color: theme.warning }]}>
+                  {primeira.percentualLimite?.toFixed(0)}% do teto
+                </Text>
+              </View>
+              <Text style={[styles.descSangria, { color: theme.text }]}>
+                <Text style={{ fontWeight: '800' }}>{primeira.nome}</Text> estourou o limite em{' '}
+                <Text style={{ fontWeight: '800', color: theme.danger }}>
+                  {formatarMoeda(Math.abs(primeira.restanteLimite!))}
+                </Text>.
+              </Text>
+            </View>
+            <Ionicons name="chevron-forward" size={18} color={theme.textMuted} />
+          </TouchableOpacity>
+        );
+      })()}
+
       {/* Atalho Rápido para Extrato Bancário */}
       <TouchableOpacity
         activeOpacity={0.85}

@@ -3,13 +3,13 @@ import { SQLiteDatabase } from 'expo-sqlite';
 export const DATABASE_NAME = 'financas.db';
 
 export const CATEGORIAS_PADRAO = [
-  { nome: 'Alimentação', icone: 'fast-food-outline', cor: '#FF6B6B' },
-  { nome: 'Transporte', icone: 'car-sport-outline', cor: '#4D96FF' },
-  { nome: 'Moradia', icone: 'home-outline', cor: '#FF922B' },
-  { nome: 'Lazer', icone: 'game-controller-outline', cor: '#9B51E0' },
-  { nome: 'Saúde', icone: 'fitness-outline', cor: '#20C997' },
-  { nome: 'Salário / Renda', icone: 'wallet-outline', cor: '#51CF66' },
-  { nome: 'Outros', icone: 'ellipsis-horizontal-circle-outline', cor: '#868E96' },
+  { nome: 'Alimentação', icone: 'fast-food-outline', cor: '#FF6B6B', limite: 1200 },
+  { nome: 'Transporte', icone: 'car-sport-outline', cor: '#4D96FF', limite: 500 },
+  { nome: 'Moradia', icone: 'home-outline', cor: '#FF922B', limite: 1500 },
+  { nome: 'Lazer', icone: 'game-controller-outline', cor: '#9B51E0', limite: 400 },
+  { nome: 'Saúde', icone: 'fitness-outline', cor: '#20C997', limite: 300 },
+  { nome: 'Salário / Renda', icone: 'wallet-outline', cor: '#51CF66', limite: null },
+  { nome: 'Outros', icone: 'ellipsis-horizontal-circle-outline', cor: '#868E96', limite: null },
 ];
 
 /**
@@ -26,7 +26,8 @@ export async function inicializarBanco(db: SQLiteDatabase): Promise<void> {
       nome TEXT NOT NULL UNIQUE,
       icone TEXT NOT NULL,
       cor TEXT NOT NULL,
-      ordem INTEGER DEFAULT 0
+      ordem INTEGER DEFAULT 0,
+      limite_mensal REAL DEFAULT NULL
     );
 
     CREATE TABLE IF NOT EXISTS transacoes (
@@ -38,6 +39,9 @@ export async function inicializarBanco(db: SQLiteDatabase): Promise<void> {
       descricao TEXT,
       conciliado INTEGER DEFAULT 0,
       origem TEXT DEFAULT 'manual',
+      parcela_atual INTEGER DEFAULT NULL,
+      total_parcelas INTEGER DEFAULT NULL,
+      grupo_parcelamento_id TEXT DEFAULT NULL,
       created_at TEXT DEFAULT CURRENT_TIMESTAMP
     );
 
@@ -51,7 +55,33 @@ export async function inicializarBanco(db: SQLiteDatabase): Promise<void> {
     CREATE INDEX IF NOT EXISTS idx_transacoes_data ON transacoes(data);
     CREATE INDEX IF NOT EXISTS idx_transacoes_categoria ON transacoes(categoria_id);
     CREATE INDEX IF NOT EXISTS idx_transacoes_tipo ON transacoes(tipo);
+    CREATE INDEX IF NOT EXISTS idx_transacoes_grupo ON transacoes(grupo_parcelamento_id);
   `);
+
+  // Migrações seguras caso o banco já tenha sido criado antes destas colunas existirem
+  try {
+    await db.execAsync(`ALTER TABLE categorias ADD COLUMN limite_mensal REAL DEFAULT NULL;`);
+  } catch (e) {
+    // Coluna já existe
+  }
+
+  try {
+    await db.execAsync(`ALTER TABLE transacoes ADD COLUMN parcela_atual INTEGER DEFAULT NULL;`);
+  } catch (e) {
+    // Coluna já existe
+  }
+
+  try {
+    await db.execAsync(`ALTER TABLE transacoes ADD COLUMN total_parcelas INTEGER DEFAULT NULL;`);
+  } catch (e) {
+    // Coluna já existe
+  }
+
+  try {
+    await db.execAsync(`ALTER TABLE transacoes ADD COLUMN grupo_parcelamento_id TEXT DEFAULT NULL;`);
+  } catch (e) {
+    // Coluna já existe
+  }
 
   // Verifica se categorias padrão já existem, se não, semeia
   const categoriasContagem = await db.getFirstAsync<{ count: number }>(
@@ -62,11 +92,12 @@ export async function inicializarBanco(db: SQLiteDatabase): Promise<void> {
     for (let i = 0; i < CATEGORIAS_PADRAO.length; i++) {
       const cat = CATEGORIAS_PADRAO[i];
       await db.runAsync(
-        'INSERT INTO categorias (nome, icone, cor, ordem) VALUES (?, ?, ?, ?);',
+        'INSERT INTO categorias (nome, icone, cor, ordem, limite_mensal) VALUES (?, ?, ?, ?, ?);',
         cat.nome,
         cat.icone,
         cat.cor,
-        i
+        i,
+        cat.limite
       );
     }
   }

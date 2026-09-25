@@ -12,6 +12,7 @@ export class CategoriesRepository {
         c.icone, 
         c.cor, 
         c.ordem,
+        c.limite_mensal,
         COUNT(t.id) as contagemTransacoes
       FROM categorias c
       LEFT JOIN transacoes t ON c.id = t.categoria_id
@@ -23,24 +24,30 @@ export class CategoriesRepository {
 
   async obterPorId(id: number): Promise<Categoria | null> {
     const row = await this.db.getFirstAsync<Categoria>(
-      'SELECT id, nome, icone, cor, ordem FROM categorias WHERE id = ?;',
+      'SELECT id, nome, icone, cor, ordem, limite_mensal FROM categorias WHERE id = ?;',
       id
     );
     return row || null;
   }
 
-  async obterOuCriar(nome: string, icone: string = 'ellipsis-horizontal-circle-outline', cor: string = '#4D96FF'): Promise<Categoria> {
+  async obterOuCriar(
+    nome: string,
+    icone: string = 'ellipsis-horizontal-circle-outline',
+    cor: string = '#4D96FF',
+    limiteMensal: number | null = null
+  ): Promise<Categoria> {
     const existente = await this.db.getFirstAsync<Categoria>(
-      'SELECT id, nome, icone, cor, ordem FROM categorias WHERE LOWER(nome) = LOWER(?);',
+      'SELECT id, nome, icone, cor, ordem, limite_mensal FROM categorias WHERE LOWER(nome) = LOWER(?);',
       nome.trim()
     );
     if (existente) return existente;
 
     const result = await this.db.runAsync(
-      'INSERT INTO categorias (nome, icone, cor) VALUES (?, ?, ?);',
+      'INSERT INTO categorias (nome, icone, cor, limite_mensal) VALUES (?, ?, ?, ?);',
       nome.trim(),
       icone,
-      cor
+      cor,
+      limiteMensal
     );
 
     return {
@@ -48,25 +55,28 @@ export class CategoriesRepository {
       nome: nome.trim(),
       icone,
       cor,
+      limite_mensal: limiteMensal,
     };
   }
 
-  async criar(nome: string, icone: string, cor: string): Promise<number> {
+  async criar(nome: string, icone: string, cor: string, limiteMensal?: number | null): Promise<number> {
     const result = await this.db.runAsync(
-      'INSERT INTO categorias (nome, icone, cor) VALUES (?, ?, ?);',
+      'INSERT INTO categorias (nome, icone, cor, limite_mensal) VALUES (?, ?, ?, ?);',
       nome.trim(),
       icone,
-      cor
+      cor,
+      limiteMensal ?? null
     );
     return Number(result.lastInsertRowId);
   }
 
-  async atualizar(id: number, nome: string, icone: string, cor: string): Promise<void> {
+  async atualizar(id: number, nome: string, icone: string, cor: string, limiteMensal?: number | null): Promise<void> {
     await this.db.runAsync(
-      'UPDATE categorias SET nome = ?, icone = ?, cor = ? WHERE id = ?;',
+      'UPDATE categorias SET nome = ?, icone = ?, cor = ?, limite_mensal = ? WHERE id = ?;',
       nome.trim(),
       icone,
       cor,
+      limiteMensal ?? null,
       id
     );
   }

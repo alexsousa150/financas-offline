@@ -14,6 +14,18 @@ export const CategoryProgressBar: React.FC<CategoryProgressBarProps> = ({ item, 
   const { theme } = useTheme();
   const variacao = formatarVariacao(item.variacaoPercentual);
 
+  const temLimite = Boolean(item.limiteMensal && item.limiteMensal > 0);
+  const percentualLimite = item.percentualLimite ?? 0;
+  const restanteLimite = item.restanteLimite ?? 0;
+  const isEstourado = temLimite && restanteLimite < 0;
+  const isAlertaLimite = temLimite && percentualLimite >= 80 && !isEstourado;
+
+  const corBarraLimite = isEstourado
+    ? theme.danger
+    : isAlertaLimite
+    ? theme.warning
+    : theme.success;
+
   return (
     <View style={[styles.container, { backgroundColor: theme.card, borderColor: theme.cardBorder }]}>
       <View style={styles.linhaCabecalho}>
@@ -55,7 +67,7 @@ export const CategoryProgressBar: React.FC<CategoryProgressBarProps> = ({ item, 
                     ? 'trending-down'
                     : 'remove'
                 }
-                size={14}
+                size={13}
                 color={
                   variacao.tipo === 'aumento'
                     ? theme.danger
@@ -84,18 +96,52 @@ export const CategoryProgressBar: React.FC<CategoryProgressBarProps> = ({ item, 
         </View>
       </View>
 
-      {/* Barra de progresso */}
-      <View style={[styles.fundoBarra, { backgroundColor: theme.inputBg }]}>
-        <View
-          style={[
-            styles.preenchimentoBarra,
-            {
-              backgroundColor: item.cor,
-              width: `${Math.min(Math.max(item.percentual, 2), 100)}%`,
-            },
-          ]}
-        />
-      </View>
+      {/* Informação e Barra do Limite / Teto de Gastos (se configurado) */}
+      {temLimite ? (
+        <View style={styles.secaoTeto}>
+          <View style={styles.linhaInfoTeto}>
+            <Text style={[styles.textoTeto, { color: theme.textSecondary }]}>
+              Teto: {formatarMoeda(item.limiteMensal!)} ({percentualLimite.toFixed(0)}%)
+            </Text>
+            <Text
+              style={[
+                styles.textoRestanteTeto,
+                { color: isEstourado ? theme.danger : isAlertaLimite ? theme.warning : theme.success },
+              ]}
+            >
+              {isEstourado
+                ? `Estourou em ${formatarMoeda(Math.abs(restanteLimite))}`
+                : `Resta ${formatarMoeda(restanteLimite)}`}
+            </Text>
+          </View>
+
+          {/* Barra de Limite */}
+          <View style={[styles.fundoBarra, { backgroundColor: theme.inputBg }]}>
+            <View
+              style={[
+                styles.preenchimentoBarra,
+                {
+                  backgroundColor: corBarraLimite,
+                  width: `${Math.min(Math.max(percentualLimite, 3), 100)}%`,
+                },
+              ]}
+            />
+          </View>
+        </View>
+      ) : (
+        /* Barra de proporção geral da categoria */
+        <View style={[styles.fundoBarra, { backgroundColor: theme.inputBg, marginTop: 4 }]}>
+          <View
+            style={[
+              styles.preenchimentoBarra,
+              {
+                backgroundColor: item.cor,
+                width: `${Math.min(Math.max(item.percentual, 2), 100)}%`,
+              },
+            ]}
+          />
+        </View>
+      )}
     </View>
   );
 };
@@ -111,7 +157,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    marginBottom: 10,
+    marginBottom: 8,
   },
   infoEsquerda: {
     flexDirection: 'row',
@@ -170,6 +216,23 @@ const styles = StyleSheet.create({
   textoVariacao: {
     fontSize: 11,
     fontWeight: '600',
+  },
+  secaoTeto: {
+    marginTop: 6,
+  },
+  linhaInfoTeto: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 4,
+  },
+  textoTeto: {
+    fontSize: 11,
+    fontWeight: '600',
+  },
+  textoRestanteTeto: {
+    fontSize: 11,
+    fontWeight: '700',
   },
   fundoBarra: {
     height: 7,

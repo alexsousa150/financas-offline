@@ -8,6 +8,7 @@ export interface Categoria {
   icone: string;
   cor: string;
   ordem?: number;
+  limite_mensal?: number | null; // Teto de orçamento mensal opcional (em R$)
   totalGasto?: number; // Para relatórios e rankings
   contagemTransacoes?: number;
 }
@@ -21,6 +22,9 @@ export interface Transacao {
   descricao: string;
   conciliado: number; // 0 = não, 1 = sim
   origem: OrigemTransacao;
+  parcela_atual?: number | null; // Ex: 1 (de 1/3)
+  total_parcelas?: number | null; // Ex: 3
+  grupo_parcelamento_id?: string | null; // UUID ou ID comum para identificar o grupo da compra parcelada
   created_at?: string;
   // Campos populados via JOIN
   categoria_nome?: string;
@@ -62,6 +66,9 @@ export interface RankingCategoria {
   percentual: number;
   totalMesAnterior?: number;
   variacaoPercentual?: number | null; // ex: +15.5%, -5.2%, ou null se não havia gasto
+  limiteMensal?: number | null; // Teto de gastos definido para o mês
+  percentualLimite?: number | null; // ex: 85% do limite consumido
+  restanteLimite?: number | null; // quanto ainda pode gastar antes de estourar (ou negativo se estourou)
 }
 
 export interface BackupData {

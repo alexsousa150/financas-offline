@@ -99,9 +99,16 @@ export const CategoriesScreen: React.FC = () => {
 
               <View style={styles.detalhes}>
                 <Text style={[styles.nomeCategoria, { color: theme.text }]}>{item.nome}</Text>
-                <Text style={[styles.contagemLctos, { color: theme.textSecondary }]}>
-                  {item.contagemTransacoes || 0} lançamentos vinculados
-                </Text>
+                <View style={styles.linhaInfoCategoria}>
+                  <Text style={[styles.contagemLctos, { color: theme.textSecondary }]}>
+                    {item.contagemTransacoes || 0} lançamentos
+                  </Text>
+                  {item.limite_mensal && item.limite_mensal > 0 ? (
+                    <Text style={[styles.tagLimite, { color: theme.primary }]}>
+                      • Teto: {item.limite_mensal.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+                    </Text>
+                  ) : null}
+                </View>
               </View>
             </View>
 
@@ -257,7 +264,17 @@ const styles = StyleSheet.create({
   },
   contagemLctos: {
     fontSize: 12,
+  },
+  linhaInfoCategoria: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
     marginTop: 2,
+    flexWrap: 'wrap',
+  },
+  tagLimite: {
+    fontSize: 12,
+    fontWeight: '700',
   },
   acoes: {
     flexDirection: 'row',

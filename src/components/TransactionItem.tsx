@@ -9,7 +9,7 @@ interface TransactionItemProps {
   transacao: Transacao;
   onEditar?: (transacao: Transacao) => void;
   onDuplicar?: (transacao: Transacao) => void;
-  onExcluir?: (transacao: Transacao) => void;
+  onExcluir?: (transacao: Transacao, excluirTodoGrupo?: boolean) => void;
 }
 
 export const TransactionItem: React.FC<TransactionItemProps> = ({
@@ -26,19 +26,40 @@ export const TransactionItem: React.FC<TransactionItemProps> = ({
   const corCategoria = transacao.categoria_cor || '#868E96';
   const iconeCategoria = (transacao.categoria_icone as any) || 'pricetag-outline';
 
+  const isParcelado = Boolean(transacao.total_parcelas && transacao.total_parcelas > 1);
+
   const confirmarExclusao = () => {
-    Alert.alert(
-      'Excluir Lançamento',
-      `Deseja realmente excluir "${transacao.descricao || transacao.categoria_nome}" no valor de ${formatarMoeda(transacao.valor)}?`,
-      [
-        { text: 'Cancelar', style: 'cancel' },
-        {
-          text: 'Excluir',
-          style: 'destructive',
-          onPress: () => onExcluir && onExcluir(transacao),
-        },
-      ]
-    );
+    if (isParcelado && transacao.grupo_parcelamento_id) {
+      Alert.alert(
+        'Excluir Compra Parcelada',
+        `Esta transação é a parcela ${transacao.parcela_atual}/${transacao.total_parcelas}. O que deseja excluir?`,
+        [
+          { text: 'Cancelar', style: 'cancel' },
+          {
+            text: 'Apenas Esta Parcela',
+            onPress: () => onExcluir && onExcluir(transacao, false),
+          },
+          {
+            text: 'Todas as Parcelas',
+            style: 'destructive',
+            onPress: () => onExcluir && onExcluir(transacao, true),
+          },
+        ]
+      );
+    } else {
+      Alert.alert(
+        'Excluir Lançamento',
+        `Deseja realmente excluir "${transacao.descricao || transacao.categoria_nome}" no valor de ${formatarMoeda(transacao.valor)}?`,
+        [
+          { text: 'Cancelar', style: 'cancel' },
+          {
+            text: 'Excluir',
+            style: 'destructive',
+            onPress: () => onExcluir && onExcluir(transacao, false),
+          },
+        ]
+      );
+    }
   };
 
   return (
@@ -57,6 +78,17 @@ export const TransactionItem: React.FC<TransactionItemProps> = ({
             <Text style={[styles.categoria, { color: theme.text }]} numberOfLines={1}>
               {transacao.categoria_nome || 'Sem categoria'}
             </Text>
+
+            {/* Badge de Parcelamento */}
+            {isParcelado && (
+              <View style={[styles.badgeParcela, { backgroundColor: theme.primaryLight }]}>
+                <Ionicons name="card-outline" size={11} color={theme.primary} />
+                <Text style={[styles.textoBadgeParcela, { color: theme.primary }]}>
+                  {transacao.parcela_atual}/{transacao.total_parcelas}
+                </Text>
+              </View>
+            )}
+
             {transacao.conciliado === 1 && (
               <View style={[styles.badgeConciliado, { backgroundColor: theme.successLight }]}>
                 <Ionicons name="checkmark-done" size={12} color={theme.success} />
@@ -148,6 +180,18 @@ const styles = StyleSheet.create({
   categoria: {
     fontSize: 15,
     fontWeight: '700',
+  },
+  badgeParcela: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 6,
+    gap: 3,
+  },
+  textoBadgeParcela: {
+    fontSize: 10,
+    fontWeight: '800',
   },
   badgeConciliado: {
     flexDirection: 'row',

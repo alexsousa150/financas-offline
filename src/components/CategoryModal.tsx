@@ -13,6 +13,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '../context/ThemeContext';
 import { useApp } from '../context/AppContext';
 import { Categoria } from '../types';
+import { converterCentavosParaValor, formatarMoeda } from '../utils/formatters';
 
 const CORES_PALETA = [
   '#FF6B6B', '#4D96FF', '#6BCB77', '#FFD93D', '#9B51E0',
@@ -51,6 +52,7 @@ export const CategoryModal: React.FC<CategoryModalProps> = ({
   const [nome, setNome] = useState('');
   const [cor, setCor] = useState(CORES_PALETA[0]);
   const [icone, setIcone] = useState(ICONES_DISPONIVEIS[0]);
+  const [limiteTextoCentavos, setLimiteTextoCentavos] = useState('');
   const [salvando, setSalvando] = useState(false);
 
   useEffect(() => {
@@ -58,12 +60,20 @@ export const CategoryModal: React.FC<CategoryModalProps> = ({
       setNome(categoriaParaEdicao.nome);
       setCor(categoriaParaEdicao.cor);
       setIcone(categoriaParaEdicao.icone);
+      if (categoriaParaEdicao.limite_mensal && categoriaParaEdicao.limite_mensal > 0) {
+        setLimiteTextoCentavos(Math.round(categoriaParaEdicao.limite_mensal * 100).toString());
+      } else {
+        setLimiteTextoCentavos('');
+      }
     } else {
       setNome('');
       setCor(CORES_PALETA[Math.floor(Math.random() * CORES_PALETA.length)]);
       setIcone(ICONES_DISPONIVEIS[0]);
+      setLimiteTextoCentavos('');
     }
   }, [categoriaParaEdicao, visivel]);
+
+  const valorLimiteNumerico = converterCentavosParaValor(limiteTextoCentavos);
 
   const handleSalvar = async () => {
     if (!nome.trim()) {
@@ -73,12 +83,14 @@ export const CategoryModal: React.FC<CategoryModalProps> = ({
 
     try {
       setSalvando(true);
+      const limiteFinal = valorLimiteNumerico > 0 ? valorLimiteNumerico : null;
+
       if (categoriaParaEdicao) {
-        await categoriesRepo.atualizar(categoriaParaEdicao.id, nome.trim(), icone, cor);
+        await categoriesRepo.atualizar(categoriaParaEdicao.id, nome.trim(), icone, cor, limiteFinal);
         await notificarMudancaDados();
         onFechar();
       } else {
-        const idNova = await categoriesRepo.criar(nome.trim(), icone, cor);
+        const idNova = await categoriesRepo.criar(nome.trim(), icone, cor, limiteFinal);
         await notificarMudancaDados();
         if (onCategoriaCriada) {
           onCategoriaCriada({
@@ -86,6 +98,7 @@ export const CategoryModal: React.FC<CategoryModalProps> = ({
             nome: nome.trim(),
             icone,
             cor,
+            limite_mensal: limiteFinal,
           });
         }
         onFechar();
@@ -119,6 +132,11 @@ export const CategoryModal: React.FC<CategoryModalProps> = ({
               <Text style={[styles.previewTexto, { color: theme.text }]}>
                 {nome || 'Nome da Categoria'}
               </Text>
+              {valorLimiteNumerico > 0 && (
+                <Text style={[styles.previewLimite, { color: theme.primary }]}>
+                  Teto: {formatarMoeda(valorLimiteNumerico)}/mês
+                </Text>
+              )}
             </View>
 
             {/* Input Nome */}
@@ -128,11 +146,36 @@ export const CategoryModal: React.FC<CategoryModalProps> = ({
                 styles.input,
                 { backgroundColor: theme.inputBg, borderColor: theme.inputBorder, color: theme.text },
               ]}
-              placeholder="Ex: Cursos, Pet, Combustível..."
+              placeholder="Ex: Cursos, Pet, Alimentação..."
               placeholderTextColor={theme.textMuted}
               value={nome}
               onChangeText={setNome}
               maxLength={30}
+            />
+
+            {/* Input Limite Mensal (Teto de Gastos) */}
+            <View style={styles.linhaLabelLimite}>
+              <Text style={[styles.label, { color: theme.textSecondary }]}>
+                Teto de Gastos Mensal (Opcional)
+              </Text>
+              <Text style={[styles.dicaLimite, { color: theme.textMuted }]}>
+                Meta máxima para não estourar
+              </Text>
+            </View>
+            <TextInput
+              style={[
+                styles.input,
+                { backgroundColor: theme.inputBg, borderColor: theme.inputBorder, color: theme.text },
+              ]}
+              placeholder="R$ 0,00 (Sem limite)"
+              placeholderTextColor={theme.textMuted}
+              keyboardType="numeric"
+              value={valorLimiteNumerico > 0 ? valorLimiteNumerico.toFixed(2).replace('.', ',') : ''}
+              onChangeText={(texto) => {
+                const digitos = texto.replace(/\D/g, '');
+                setLimiteTextoCentavos(digitos);
+              }}
+              maxLength={9}
             />
 
             {/* Seletor de Cores */}
@@ -199,7 +242,7 @@ const styles = StyleSheet.create({
     borderTopRightRadius: 24,
     borderWidth: 1,
     padding: 20,
-    maxHeight: '85%',
+    maxHeight: '88%',
   },
   cabecalho: {
     flexDirection: 'row',
@@ -216,12 +259,12 @@ const styles = StyleSheet.create({
   },
   previewContainer: {
     alignItems: 'center',
-    marginBottom: 18,
+    marginBottom: 16,
   },
   previewIcone: {
-    width: 68,
-    height: 68,
-    borderRadius: 34,
+    width: 64,
+    height: 64,
+    borderRadius: 32,
     borderWidth: 2,
     alignItems: 'center',
     justifyContent: 'center',
@@ -231,13 +274,27 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '700',
   },
-  label: {
-    fontSize: 13,
+  previewLimite: {
+    fontSize: 12,
     fontWeight: '700',
-    marginBottom: 8,
+    marginTop: 2,
+  },
+  label: {
+    fontSize: 12,
+    fontWeight: '700',
+    marginBottom: 6,
     marginTop: 10,
     textTransform: 'uppercase',
     letterSpacing: 0.5,
+  },
+  linhaLabelLimite: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginTop: 8,
+  },
+  dicaLimite: {
+    fontSize: 11,
   },
   input: {
     height: 48,

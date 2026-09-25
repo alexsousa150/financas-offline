@@ -10,6 +10,7 @@ import {
   Alert,
   KeyboardAvoidingView,
   Platform,
+  Switch,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '../context/ThemeContext';
@@ -23,6 +24,8 @@ import {
   formatarDataBr,
 } from '../utils/formatters';
 import { CategoryModal } from './CategoryModal';
+
+const OPCOES_PARCELAS = [2, 3, 4, 5, 6, 8, 10, 12, 18, 24];
 
 interface TransactionModalProps {
   visivel: boolean;
@@ -47,6 +50,10 @@ export const TransactionModal: React.FC<TransactionModalProps> = ({
   const [descricao, setDescricao] = useState('');
   const [salvando, setSalvando] = useState(false);
 
+  // Parcelamento
+  const [isParcelado, setIsParcelado] = useState(false);
+  const [numeroParcelas, setNumeroParcelas] = useState(3);
+
   // Modal aninhado para criar nova categoria na hora sem perder os dados digitados
   const [modalNovaCategoriaVisivel, setModalNovaCategoriaVisivel] = useState(false);
 
@@ -61,6 +68,7 @@ export const TransactionModal: React.FC<TransactionModalProps> = ({
         setCategoriaId(transacaoParaEdicao.categoria_id);
         setDataIso(transacaoParaEdicao.data);
         setDescricao(transacaoParaEdicao.descricao || '');
+        setIsParcelado(false); // Edição é pontual por parcela
       } else if (transacaoParaDuplicacao) {
         setTipo(transacaoParaDuplicacao.tipo);
         const centavos = Math.round(transacaoParaDuplicacao.valor * 100).toString();
@@ -68,14 +76,16 @@ export const TransactionModal: React.FC<TransactionModalProps> = ({
         setCategoriaId(transacaoParaDuplicacao.categoria_id);
         setDataIso(getDataHojeIso()); // Data de hoje para a cópia
         setDescricao(transacaoParaDuplicacao.descricao ? `${transacaoParaDuplicacao.descricao} (Cópia)` : '');
+        setIsParcelado(false);
       } else {
         // Novo lançamento padrão
         setTipo('despesa');
         setValorTextoCentavos('');
         setDataIso(getDataHojeIso());
         setDescricao('');
+        setIsParcelado(false);
+        setNumeroParcelas(3);
         if (categorias.length > 0) {
-          // Seleciona categoria padrão (ex: Alimentação para despesa, Salário para receita)
           const catPadrao = categorias.find((c) => c.nome.toLowerCase() === 'alimentação') || categorias[0];
           setCategoriaId(catPadrao.id);
         }
@@ -88,10 +98,10 @@ export const TransactionModal: React.FC<TransactionModalProps> = ({
     }
   }, [visivel, transacaoParaEdicao, transacaoParaDuplicacao, categorias]);
 
-  // Se trocar o tipo para receita e a categoria atual for Alimentação/Transporte, sugere Salário/Renda se existir
   const alternarTipo = (novoTipo: TipoTransacao) => {
     setTipo(novoTipo);
     if (novoTipo === 'receita') {
+      setIsParcelado(false);
       const catReceita = categorias.find(
         (c) => c.nome.toLowerCase().includes('salário') || c.nome.toLowerCase().includes('renda')
       );
@@ -103,6 +113,7 @@ export const TransactionModal: React.FC<TransactionModalProps> = ({
   };
 
   const valorNumerico = converterCentavosParaValor(valorTextoCentavos);
+  const valorParcelaCalculado = isParcelado && numeroParcelas > 0 ? valorNumerico / numeroParcelas : valorNumerico;
 
   const handleSalvar = async () => {
     if (valorNumerico <= 0) {
@@ -126,6 +137,21 @@ export const TransactionModal: React.FC<TransactionModalProps> = ({
           data: dataIso,
           descricao: descricao.trim(),
         });
+      } else if (isParcelado && tipo === 'despesa') {
+        // Criação de compra parcelada
+        await transactionsRepo.criarParcelado(
+          {
+            valor: valorNumerico,
+            tipo,
+            categoria_id: categoriaId,
+            data: dataIso,
+            descricao: descricao.trim(),
+            conciliado: 0,
+            origem: 'manual',
+          },
+          numeroParcelas,
+          valorNumerico
+        );
       } else {
         await transactionsRepo.criar({
           valor: valorNumerico,
@@ -236,6 +262,71 @@ export const TransactionModal: React.FC<TransactionModalProps> = ({
               />
             </View>
 
+            {/* Opção de Compra Parcelada (apenas para despesas novas) */}
+            {tipo === 'despesa' && !transacaoParaEdicao && (
+              <View style={[styles.cardParcelamento, { backgroundColor: theme.inputBg, borderColor: theme.inputBorder }]}>
+                <View style={styles.linhaToggleParcelado}>
+                  <View style={styles.infoTextoParcelado}>
+                    <Ionicons name="card-outline" size={18} color={theme.text} />
+                    <Text style={[styles.tituloParcelado, { color: theme.text }]}>Compra Parcelada?</Text>
+                  </View>
+                  <Switch
+                    value={isParcelado}
+                    onValueChange={setIsParcelado}
+                    thumbColor={isParcelado ? theme.primary : '#F4F4F5'}
+                    trackColor={{ false: '#71717A', true: theme.primaryLight }}
+                  />
+                </View>
+
+                {isParcelado && (
+                  <View style={styles.conteudoParcelamentoAtivo}>
+                    <Text style={[styles.labelSecaoPequena, { color: theme.textSecondary }]}>
+                      Número de Parcelas
+                    </Text>
+
+                    <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.scrollParcelas}>
+                      {OPCOES_PARCELAS.map((num) => (
+                        <TouchableOpacity
+                          key={num}
+                          onPress={() => setNumeroParcelas(num)}
+                          style={[
+                            styles.chipParcela,
+                            {
+                              backgroundColor: numeroParcelas === num ? theme.primary : theme.card,
+                              borderColor: numeroParcelas === num ? theme.primary : theme.cardBorder,
+                            },
+                          ]}
+                        >
+                          <Text
+                            style={[
+                              styles.textoChipParcela,
+                              { color: numeroParcelas === num ? '#FFFFFF' : theme.text },
+                            ]}
+                          >
+                            {num}x
+                          </Text>
+                        </TouchableOpacity>
+                      ))}
+                    </ScrollView>
+
+                    {valorNumerico > 0 && (
+                      <View style={[styles.boxResumoParcelas, { backgroundColor: theme.card, borderColor: theme.cardBorder }]}>
+                        <Text style={[styles.textoResumoParcelas, { color: theme.text }]}>
+                          {numeroParcelas}x de{' '}
+                          <Text style={{ fontWeight: '800', color: theme.danger }}>
+                            {formatarMoeda(valorParcelaCalculado)}
+                          </Text>
+                        </Text>
+                        <Text style={[styles.subtextoResumoParcelas, { color: theme.textSecondary }]}>
+                          Gera lançamentos automáticos mês a mês a partir da data informada.
+                        </Text>
+                      </View>
+                    )}
+                  </View>
+                )}
+              </View>
+            )}
+
             {/* Seletor de Categorias */}
             <View style={styles.secaoTituloLinha}>
               <Text style={[styles.labelSecao, { color: theme.textSecondary }]}>Categoria</Text>
@@ -342,7 +433,7 @@ export const TransactionModal: React.FC<TransactionModalProps> = ({
                 styles.inputDescricao,
                 { backgroundColor: theme.inputBg, borderColor: theme.inputBorder, color: theme.text },
               ]}
-              placeholder="Ex: Almoço com a família, Uber mercado..."
+              placeholder="Ex: Celular novo, Supermercado..."
               placeholderTextColor={theme.textMuted}
               value={descricao}
               onChangeText={setDescricao}
@@ -362,6 +453,8 @@ export const TransactionModal: React.FC<TransactionModalProps> = ({
                 ? 'Salvando...'
                 : transacaoParaEdicao
                 ? 'Atualizar Lançamento'
+                : isParcelado
+                ? `Salvar Compra em ${numeroParcelas}x`
                 : `Salvar ${tipo === 'despesa' ? 'Despesa' : 'Receita'}`}
             </Text>
           </TouchableOpacity>
@@ -392,7 +485,7 @@ const styles = StyleSheet.create({
     borderTopRightRadius: 26,
     borderWidth: 1,
     padding: 20,
-    maxHeight: '90%',
+    maxHeight: '92%',
   },
   cabecalho: {
     flexDirection: 'row',
@@ -411,7 +504,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     borderRadius: 14,
     padding: 4,
-    marginBottom: 16,
+    marginBottom: 14,
   },
   toggleBotao: {
     flex: 1,
@@ -430,7 +523,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    marginVertical: 10,
+    marginVertical: 6,
   },
   labelMoeda: {
     fontSize: 28,
@@ -438,16 +531,74 @@ const styles = StyleSheet.create({
     marginRight: 6,
   },
   inputValor: {
-    fontSize: 42,
+    fontSize: 40,
     fontWeight: '900',
     minWidth: 140,
     textAlign: 'left',
+  },
+  cardParcelamento: {
+    borderRadius: 14,
+    borderWidth: 1,
+    padding: 12,
+    marginBottom: 12,
+  },
+  linhaToggleParcelado: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  infoTextoParcelado: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  tituloParcelado: {
+    fontSize: 14,
+    fontWeight: '700',
+  },
+  conteudoParcelamentoAtivo: {
+    marginTop: 10,
+  },
+  labelSecaoPequena: {
+    fontSize: 11,
+    fontWeight: '700',
+    textTransform: 'uppercase',
+    marginBottom: 6,
+  },
+  scrollParcelas: {
+    flexDirection: 'row',
+    gap: 8,
+    paddingVertical: 4,
+  },
+  chipParcela: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 10,
+    borderWidth: 1,
+  },
+  textoChipParcela: {
+    fontSize: 13,
+    fontWeight: '800',
+  },
+  boxResumoParcelas: {
+    marginTop: 10,
+    padding: 10,
+    borderRadius: 10,
+    borderWidth: 1,
+  },
+  textoResumoParcelas: {
+    fontSize: 14,
+    fontWeight: '700',
+  },
+  subtextoResumoParcelas: {
+    fontSize: 11,
+    marginTop: 2,
   },
   secaoTituloLinha: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    marginTop: 10,
+    marginTop: 8,
     marginBottom: 8,
   },
   labelSecao: {
