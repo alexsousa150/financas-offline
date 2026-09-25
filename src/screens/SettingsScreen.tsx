@@ -18,6 +18,7 @@ import { useApp } from '../context/AppContext';
 import { BackupData } from '../types';
 import { NotificationService } from '../services/notificationService';
 import { AppHaptics } from '../utils/haptics';
+import { APP_VERSION, APP_BUILD } from '../utils/version';
 
 export const SettingsScreen: React.FC = () => {
   const { theme, modo, setModo } = useTheme();
@@ -392,7 +393,7 @@ export const SettingsScreen: React.FC = () => {
       </View>
 
       <Text style={[styles.versaoTexto, { color: theme.textMuted }]}>
-        Finanças Offline • Versão 1.1.0
+        Finanças Offline • v{APP_VERSION} (Build {APP_BUILD})
       </Text>
     </ScrollView>
   );
