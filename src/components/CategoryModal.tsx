@@ -12,8 +12,9 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '../context/ThemeContext';
 import { useApp } from '../context/AppContext';
-import { Categoria } from '../types';
+import { Categoria, TipoGasto } from '../types';
 import { converterCentavosParaValor, formatarMoeda } from '../utils/formatters';
+import { AppHaptics } from '../utils/haptics';
 
 const CORES_PALETA = [
   '#FF6B6B', '#4D96FF', '#6BCB77', '#FFD93D', '#9B51E0',
@@ -52,6 +53,7 @@ export const CategoryModal: React.FC<CategoryModalProps> = ({
   const [nome, setNome] = useState('');
   const [cor, setCor] = useState(CORES_PALETA[0]);
   const [icone, setIcone] = useState(ICONES_DISPONIVEIS[0]);
+  const [tipoGasto, setTipoGasto] = useState<TipoGasto>('essencial');
   const [limiteTextoCentavos, setLimiteTextoCentavos] = useState('');
   const [salvando, setSalvando] = useState(false);
 
@@ -60,6 +62,7 @@ export const CategoryModal: React.FC<CategoryModalProps> = ({
       setNome(categoriaParaEdicao.nome);
       setCor(categoriaParaEdicao.cor);
       setIcone(categoriaParaEdicao.icone);
+      setTipoGasto(categoriaParaEdicao.tipo_gasto || 'essencial');
       if (categoriaParaEdicao.limite_mensal && categoriaParaEdicao.limite_mensal > 0) {
         setLimiteTextoCentavos(Math.round(categoriaParaEdicao.limite_mensal * 100).toString());
       } else {
@@ -69,6 +72,7 @@ export const CategoryModal: React.FC<CategoryModalProps> = ({
       setNome('');
       setCor(CORES_PALETA[Math.floor(Math.random() * CORES_PALETA.length)]);
       setIcone(ICONES_DISPONIVEIS[0]);
+      setTipoGasto('essencial');
       setLimiteTextoCentavos('');
     }
   }, [categoriaParaEdicao, visivel]);
@@ -86,11 +90,11 @@ export const CategoryModal: React.FC<CategoryModalProps> = ({
       const limiteFinal = valorLimiteNumerico > 0 ? valorLimiteNumerico : null;
 
       if (categoriaParaEdicao) {
-        await categoriesRepo.atualizar(categoriaParaEdicao.id, nome.trim(), icone, cor, limiteFinal);
+        await categoriesRepo.atualizar(categoriaParaEdicao.id, nome.trim(), icone, cor, limiteFinal, tipoGasto);
         await notificarMudancaDados();
         onFechar();
       } else {
-        const idNova = await categoriesRepo.criar(nome.trim(), icone, cor, limiteFinal);
+        const idNova = await categoriesRepo.criar(nome.trim(), icone, cor, limiteFinal, tipoGasto);
         await notificarMudancaDados();
         if (onCategoriaCriada) {
           onCategoriaCriada({
@@ -99,12 +103,13 @@ export const CategoryModal: React.FC<CategoryModalProps> = ({
             icone,
             cor,
             limite_mensal: limiteFinal,
+            tipo_gasto: tipoGasto,
           });
         }
         onFechar();
       }
     } catch (e: any) {
-      Alert.alert('Erro', e.message?.includes('UNIQUE') ? 'Já existe uma categoria com este nome.' : 'Erro ao salvar categoria.');
+      Alert.alert('Erro', 'Não foi possível salvar a categoria.');
     } finally {
       setSalvando(false);
     }
@@ -114,72 +119,137 @@ export const CategoryModal: React.FC<CategoryModalProps> = ({
     <Modal visible={visivel} animationType="slide" transparent onRequestClose={onFechar}>
       <View style={styles.overlay}>
         <View style={[styles.conteudo, { backgroundColor: theme.card, borderColor: theme.cardBorder }]}>
+          {/* Cabeçalho */}
           <View style={styles.cabecalho}>
             <Text style={[styles.titulo, { color: theme.text }]}>
               {categoriaParaEdicao ? 'Editar Categoria' : 'Nova Categoria'}
             </Text>
             <TouchableOpacity onPress={onFechar} style={styles.botaoFechar}>
-              <Ionicons name="close" size={22} color={theme.textMuted} />
+              <Ionicons name="close" size={24} color={theme.textMuted} />
             </TouchableOpacity>
           </View>
 
-          <ScrollView showsVerticalScrollIndicator={false}>
-            {/* Preview do ícone selecionado */}
+          <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
+            {/* Pré-visualização do Badge */}
             <View style={styles.previewContainer}>
               <View style={[styles.previewIcone, { backgroundColor: cor + '25', borderColor: cor }]}>
-                <Ionicons name={icone as any} size={36} color={cor} />
+                <Ionicons name={icone as any} size={30} color={cor} />
               </View>
               <Text style={[styles.previewTexto, { color: theme.text }]}>
-                {nome || 'Nome da Categoria'}
+                {nome.trim() || 'Nome da Categoria'}
+              </Text>
+              <Text style={[styles.previewClassificacao, { color: tipoGasto === 'essencial' ? theme.success : theme.warning }]}>
+                {tipoGasto === 'essencial' ? '🛡️ Gasto Essencial (Sobrevivência)' : '✨ Estilo de Vida (Lazer/Supérfluo)'}
               </Text>
               {valorLimiteNumerico > 0 && (
-                <Text style={[styles.previewLimite, { color: theme.primary }]}>
-                  Teto: {formatarMoeda(valorLimiteNumerico)}/mês
+                <Text style={[styles.previewLimite, { color: theme.danger }]}>
+                  Teto mensal: {formatarMoeda(valorLimiteNumerico)}
                 </Text>
               )}
             </View>
 
-            {/* Input Nome */}
+            {/* Nome da Categoria */}
             <Text style={[styles.label, { color: theme.textSecondary }]}>Nome</Text>
             <TextInput
               style={[
-                styles.input,
+                styles.inputNome,
                 { backgroundColor: theme.inputBg, borderColor: theme.inputBorder, color: theme.text },
               ]}
-              placeholder="Ex: Cursos, Pet, Alimentação..."
+              placeholder="Ex: Farmácia, Pet, Academia..."
               placeholderTextColor={theme.textMuted}
               value={nome}
               onChangeText={setNome}
               maxLength={30}
             />
 
-            {/* Input Limite Mensal (Teto de Gastos) */}
-            <View style={styles.linhaLabelLimite}>
-              <Text style={[styles.label, { color: theme.textSecondary }]}>
-                Teto de Gastos Mensal (Opcional)
-              </Text>
-              <Text style={[styles.dicaLimite, { color: theme.textMuted }]}>
-                Meta máxima para não estourar
-              </Text>
+            {/* Classificação Financeira: Essencial vs Estilo de Vida */}
+            <Text style={[styles.label, { color: theme.textSecondary, marginTop: 14 }]}>
+              Classificação Financeira
+            </Text>
+            <View style={styles.linhaTipoGasto}>
+              <TouchableOpacity
+                onPress={() => {
+                  AppHaptics.toqueSelecao();
+                  setTipoGasto('essencial');
+                }}
+                style={[
+                  styles.botaoTipoGasto,
+                  {
+                    backgroundColor: tipoGasto === 'essencial' ? theme.successLight : theme.inputBg,
+                    borderColor: tipoGasto === 'essencial' ? theme.success : theme.inputBorder,
+                  },
+                ]}
+              >
+                <Ionicons
+                  name="shield-checkmark-outline"
+                  size={18}
+                  color={tipoGasto === 'essencial' ? theme.success : theme.textSecondary}
+                />
+                <View style={{ marginLeft: 8, flex: 1 }}>
+                  <Text style={[styles.tituloTipoGasto, { color: tipoGasto === 'essencial' ? theme.success : theme.text }]}>
+                    Essencial
+                  </Text>
+                  <Text style={[styles.descTipoGasto, { color: theme.textSecondary }]}>
+                    Moradia, contas, saúde, alimentação básica
+                  </Text>
+                </View>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                onPress={() => {
+                  AppHaptics.toqueSelecao();
+                  setTipoGasto('estilo_de_vida');
+                }}
+                style={[
+                  styles.botaoTipoGasto,
+                  {
+                    backgroundColor: tipoGasto === 'estilo_de_vida' ? theme.warningLight : theme.inputBg,
+                    borderColor: tipoGasto === 'estilo_de_vida' ? theme.warning : theme.inputBorder,
+                    marginTop: 8,
+                  },
+                ]}
+              >
+                <Ionicons
+                  name="sparkles-outline"
+                  size={18}
+                  color={tipoGasto === 'estilo_de_vida' ? theme.warning : theme.textSecondary}
+                />
+                <View style={{ marginLeft: 8, flex: 1 }}>
+                  <Text style={[styles.tituloTipoGasto, { color: tipoGasto === 'estilo_de_vida' ? theme.warning : theme.text }]}>
+                    Estilo de Vida
+                  </Text>
+                  <Text style={[styles.descTipoGasto, { color: theme.textSecondary }]}>
+                    Lazer, delivery, compras, viagens, supérfluos
+                  </Text>
+                </View>
+              </TouchableOpacity>
             </View>
-            <TextInput
-              style={[
-                styles.input,
-                { backgroundColor: theme.inputBg, borderColor: theme.inputBorder, color: theme.text },
-              ]}
-              placeholder="R$ 0,00 (Sem limite)"
-              placeholderTextColor={theme.textMuted}
-              keyboardType="numeric"
-              value={valorLimiteNumerico > 0 ? valorLimiteNumerico.toFixed(2).replace('.', ',') : ''}
-              onChangeText={(texto) => {
-                const digitos = texto.replace(/\D/g, '');
-                setLimiteTextoCentavos(digitos);
-              }}
-              maxLength={9}
-            />
+
+            {/* Teto / Limite de Gastos Mensal */}
+            <Text style={[styles.label, { color: theme.textSecondary, marginTop: 14 }]}>
+              Limite Máximo de Gastos no Mês (Opcional)
+            </Text>
+            <View style={styles.linhaLimite}>
+              <Text style={[styles.labelMoeda, { color: theme.danger }]}>R$</Text>
+              <TextInput
+                style={[
+                  styles.inputLimite,
+                  { backgroundColor: theme.inputBg, borderColor: theme.inputBorder, color: theme.text },
+                ]}
+                keyboardType="numeric"
+                placeholder="0,00 (Sem limite definido)"
+                placeholderTextColor={theme.textMuted}
+                value={valorLimiteNumerico > 0 ? valorLimiteNumerico.toFixed(2).replace('.', ',') : ''}
+                onChangeText={(texto) => {
+                  const apenasDigitos = texto.replace(/\D/g, '');
+                  setLimiteTextoCentavos(apenasDigitos);
+                }}
+                maxLength={9}
+              />
+            </View>
 
             {/* Seletor de Cores */}
-            <Text style={[styles.label, { color: theme.textSecondary }]}>Cor</Text>
+            <Text style={[styles.label, { color: theme.textSecondary, marginTop: 14 }]}>Cor</Text>
             <View style={styles.gridCores}>
               {CORES_PALETA.map((c) => (
                 <TouchableOpacity
@@ -188,16 +258,14 @@ export const CategoryModal: React.FC<CategoryModalProps> = ({
                   style={[
                     styles.circuloCor,
                     { backgroundColor: c },
-                    cor === c && styles.circuloCorSelecionado,
+                    cor === c && styles.circuloCorSelecionada,
                   ]}
-                >
-                  {cor === c && <Ionicons name="checkmark" size={16} color="#FFFFFF" />}
-                </TouchableOpacity>
+                />
               ))}
             </View>
 
             {/* Seletor de Ícones */}
-            <Text style={[styles.label, { color: theme.textSecondary }]}>Ícone</Text>
+            <Text style={[styles.label, { color: theme.textSecondary, marginTop: 14 }]}>Ícone</Text>
             <View style={styles.gridIcones}>
               {ICONES_DISPONIVEIS.map((ic) => (
                 <TouchableOpacity
@@ -242,13 +310,13 @@ const styles = StyleSheet.create({
     borderTopRightRadius: 24,
     borderWidth: 1,
     padding: 20,
-    maxHeight: '88%',
+    maxHeight: '90%',
   },
   cabecalho: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    marginBottom: 16,
+    marginBottom: 12,
   },
   titulo: {
     fontSize: 18,
@@ -259,20 +327,25 @@ const styles = StyleSheet.create({
   },
   previewContainer: {
     alignItems: 'center',
-    marginBottom: 16,
+    marginBottom: 12,
   },
   previewIcone: {
-    width: 64,
-    height: 64,
-    borderRadius: 32,
+    width: 60,
+    height: 60,
+    borderRadius: 30,
     borderWidth: 2,
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: 8,
+    marginBottom: 6,
   },
   previewTexto: {
     fontSize: 16,
     fontWeight: '700',
+  },
+  previewClassificacao: {
+    fontSize: 11,
+    fontWeight: '700',
+    marginTop: 2,
   },
   previewLimite: {
     fontSize: 12,
@@ -282,50 +355,73 @@ const styles = StyleSheet.create({
   label: {
     fontSize: 12,
     fontWeight: '700',
-    marginBottom: 6,
-    marginTop: 10,
     textTransform: 'uppercase',
     letterSpacing: 0.5,
+    marginBottom: 6,
   },
-  linhaLabelLimite: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginTop: 8,
-  },
-  dicaLimite: {
-    fontSize: 11,
-  },
-  input: {
+  inputNome: {
     height: 48,
     borderRadius: 12,
     borderWidth: 1,
     paddingHorizontal: 14,
     fontSize: 15,
   },
+  linhaTipoGasto: {
+    gap: 4,
+  },
+  botaoTipoGasto: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 12,
+    borderRadius: 12,
+    borderWidth: 1,
+  },
+  tituloTipoGasto: {
+    fontSize: 14,
+    fontWeight: '700',
+  },
+  descTipoGasto: {
+    fontSize: 11,
+    marginTop: 2,
+  },
+  linhaLimite: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  labelMoeda: {
+    fontSize: 20,
+    fontWeight: '800',
+    marginRight: 8,
+  },
+  inputLimite: {
+    flex: 1,
+    height: 48,
+    borderRadius: 12,
+    borderWidth: 1,
+    paddingHorizontal: 14,
+    fontSize: 16,
+    fontWeight: '700',
+  },
   gridCores: {
     flexDirection: 'row',
     flexWrap: 'wrap',
     gap: 10,
-    marginBottom: 6,
+    marginBottom: 4,
   },
   circuloCor: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    alignItems: 'center',
-    justifyContent: 'center',
+    width: 32,
+    height: 32,
+    borderRadius: 16,
   },
-  circuloCorSelecionado: {
+  circuloCorSelecionada: {
     borderWidth: 3,
     borderColor: '#FFFFFF',
-    transform: [{ scale: 1.1 }],
+    transform: [{ scale: 1.15 }],
   },
   gridIcones: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    gap: 10,
-    marginBottom: 16,
+    gap: 8,
   },
   itemIcone: {
     width: 44,
@@ -336,10 +432,10 @@ const styles = StyleSheet.create({
   },
   botaoSalvar: {
     height: 52,
-    borderRadius: 14,
+    borderRadius: 16,
     alignItems: 'center',
     justifyContent: 'center',
-    marginTop: 14,
+    marginTop: 16,
   },
   textoBotaoSalvar: {
     color: '#FFFFFF',

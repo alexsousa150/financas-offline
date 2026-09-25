@@ -6,7 +6,14 @@ import { BackupRepository } from '../database/backupRepo';
 import { SettingsRepository } from '../database/settingsRepo';
 import { RecurringRepository } from '../database/recurringRepo';
 import { ReconciliationService } from '../services/reconciliationService';
-import { Categoria, Transacao, ResumoFinanceiro, RankingCategoria } from '../types';
+import {
+  Categoria,
+  Transacao,
+  ResumoFinanceiro,
+  RankingCategoria,
+  TetoDiarioInfo,
+  AnaliseEssencialVsEstilo,
+} from '../types';
 import { getMesAnoAtualIso, formatarMoeda } from '../utils/formatters';
 import { AppHaptics } from '../utils/haptics';
 
@@ -24,12 +31,15 @@ interface AppContextType {
   setMesSelecionado: (mesAno: string) => void;
   categorias: Categoria[];
   carregarCategorias: () => Promise<void>;
-  
+
   // Resumos e dados do mês selecionado
   resumoMes: ResumoFinanceiro;
   rankingGastos: RankingCategoria[];
   transacoesRecentes: Transacao[];
+  tetoDiario: TetoDiarioInfo | null;
+  analiseEssencial: AnaliseEssencialVsEstilo | null;
   carregarDadosPainel: () => Promise<void>;
+  alternarStatusPago: (id: number, novoStatus: number) => Promise<void>;
 
   // Modo Privacidade
   modoPrivacidade: boolean;
@@ -79,9 +89,22 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const [mesSelecionado, setMesSelecionado] = useState<string>(getMesAnoAtualIso());
   const [categorias, setCategorias] = useState<Categoria[]>([]);
-  const [resumoMes, setResumoMes] = useState<ResumoFinanceiro>({ receitas: 0, despesas: 0, saldo: 0 });
+  const [resumoMes, setResumoMes] = useState<ResumoFinanceiro>({
+    receitas: 0,
+    despesas: 0,
+    saldo: 0,
+    saldoRealizado: 0,
+    receitasRealizadas: 0,
+    despesasRealizadas: 0,
+    receitasPendentes: 0,
+    despesasPendentes: 0,
+    contasPendentesQtd: 0,
+    contasPendentesValor: 0,
+  });
   const [rankingGastos, setRankingGastos] = useState<RankingCategoria[]>([]);
   const [transacoesRecentes, setTransacoesRecentes] = useState<Transacao[]>([]);
+  const [tetoDiario, setTetoDiario] = useState<TetoDiarioInfo | null>(null);
+  const [analiseEssencial, setAnaliseEssencial] = useState<AnaliseEssencialVsEstilo | null>(null);
 
   // Privacidade e Biometria
   const [modoPrivacidade, setModoPrivacidade] = useState(false);
@@ -146,18 +169,32 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       // Processa automaticamente os lançamentos fixos recorrentes para o mês selecionado
       await recurringRepo.processarRecorrentesDoMes(mesSelecionado);
 
-      const [resumo, ranking, recentes] = await Promise.all([
+      const [resumo, ranking, recentes, teto, analise] = await Promise.all([
         transactionsRepo.obterResumoMes(mesSelecionado),
         transactionsRepo.obterRankingCategorias(mesSelecionado, 'despesa'),
         transactionsRepo.listar({ mesAno: mesSelecionado, limite: 8 }),
+        transactionsRepo.obterTetoDiario(mesSelecionado),
+        transactionsRepo.obterAnaliseEssencialVsEstilo(mesSelecionado),
       ]);
       setResumoMes(resumo);
       setRankingGastos(ranking);
       setTransacoesRecentes(recentes);
+      setTetoDiario(teto);
+      setAnaliseEssencial(analise);
     } catch (e) {
       console.error('Erro ao carregar painel:', e);
     }
   }, [transactionsRepo, recurringRepo, mesSelecionado]);
+
+  const alternarStatusPago = async (id: number, novoStatus: number) => {
+    try {
+      AppHaptics.toqueSucesso();
+      await transactionsRepo.alternarStatusPago(id, novoStatus);
+      await carregarDadosPainel();
+    } catch (e) {
+      console.error('Erro ao alternar status pago:', e);
+    }
+  };
 
   const notificarMudancaDados = useCallback(async () => {
     await Promise.all([carregarCategorias(), carregarDadosPainel()]);
@@ -246,7 +283,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         resumoMes,
         rankingGastos,
         transacoesRecentes,
+        tetoDiario,
+        analiseEssencial,
         carregarDadosPainel,
+        alternarStatusPago,
         modoPrivacidade,
         alternarModoPrivacidade,
         formatarValor,

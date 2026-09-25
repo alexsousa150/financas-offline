@@ -1,5 +1,5 @@
 import { SQLiteDatabase } from 'expo-sqlite';
-import { Categoria } from '../types';
+import { Categoria, TipoGasto } from '../types';
 
 export class CategoriesRepository {
   constructor(private db: SQLiteDatabase) {}
@@ -13,6 +13,7 @@ export class CategoriesRepository {
         c.cor, 
         c.ordem,
         c.limite_mensal,
+        COALESCE(c.tipo_gasto, 'essencial') as tipo_gasto,
         COUNT(t.id) as contagemTransacoes
       FROM categorias c
       LEFT JOIN transacoes t ON c.id = t.categoria_id
@@ -24,7 +25,8 @@ export class CategoriesRepository {
 
   async obterPorId(id: number): Promise<Categoria | null> {
     const row = await this.db.getFirstAsync<Categoria>(
-      'SELECT id, nome, icone, cor, ordem, limite_mensal FROM categorias WHERE id = ?;',
+      `SELECT id, nome, icone, cor, ordem, limite_mensal, COALESCE(tipo_gasto, 'essencial') as tipo_gasto 
+       FROM categorias WHERE id = ?;`,
       id
     );
     return row || null;
@@ -34,20 +36,23 @@ export class CategoriesRepository {
     nome: string,
     icone: string = 'ellipsis-horizontal-circle-outline',
     cor: string = '#4D96FF',
-    limiteMensal: number | null = null
+    limiteMensal: number | null = null,
+    tipoGasto: TipoGasto = 'essencial'
   ): Promise<Categoria> {
     const existente = await this.db.getFirstAsync<Categoria>(
-      'SELECT id, nome, icone, cor, ordem, limite_mensal FROM categorias WHERE LOWER(nome) = LOWER(?);',
+      `SELECT id, nome, icone, cor, ordem, limite_mensal, COALESCE(tipo_gasto, 'essencial') as tipo_gasto 
+       FROM categorias WHERE LOWER(nome) = LOWER(?);`,
       nome.trim()
     );
     if (existente) return existente;
 
     const result = await this.db.runAsync(
-      'INSERT INTO categorias (nome, icone, cor, limite_mensal) VALUES (?, ?, ?, ?);',
+      'INSERT INTO categorias (nome, icone, cor, limite_mensal, tipo_gasto) VALUES (?, ?, ?, ?, ?);',
       nome.trim(),
       icone,
       cor,
-      limiteMensal
+      limiteMensal,
+      tipoGasto
     );
 
     return {
@@ -56,29 +61,56 @@ export class CategoriesRepository {
       icone,
       cor,
       limite_mensal: limiteMensal,
+      tipo_gasto: tipoGasto,
     };
   }
 
-  async criar(nome: string, icone: string, cor: string, limiteMensal?: number | null): Promise<number> {
+  async criar(
+    nome: string,
+    icone: string,
+    cor: string,
+    limiteMensal?: number | null,
+    tipoGasto: TipoGasto = 'essencial'
+  ): Promise<number> {
     const result = await this.db.runAsync(
-      'INSERT INTO categorias (nome, icone, cor, limite_mensal) VALUES (?, ?, ?, ?);',
-      nome.trim(),
-      icone,
-      cor,
-      limiteMensal ?? null
-    );
-    return Number(result.lastInsertRowId);
-  }
-
-  async atualizar(id: number, nome: string, icone: string, cor: string, limiteMensal?: number | null): Promise<void> {
-    await this.db.runAsync(
-      'UPDATE categorias SET nome = ?, icone = ?, cor = ?, limite_mensal = ? WHERE id = ?;',
+      'INSERT INTO categorias (nome, icone, cor, limite_mensal, tipo_gasto) VALUES (?, ?, ?, ?, ?);',
       nome.trim(),
       icone,
       cor,
       limiteMensal ?? null,
-      id
+      tipoGasto
     );
+    return Number(result.lastInsertRowId);
+  }
+
+  async atualizar(
+    id: number,
+    nome: string,
+    icone: string,
+    cor: string,
+    limiteMensal?: number | null,
+    tipoGasto?: TipoGasto
+  ): Promise<void> {
+    if (tipoGasto !== undefined) {
+      await this.db.runAsync(
+        'UPDATE categorias SET nome = ?, icone = ?, cor = ?, limite_mensal = ?, tipo_gasto = ? WHERE id = ?;',
+        nome.trim(),
+        icone,
+        cor,
+        limiteMensal ?? null,
+        tipoGasto,
+        id
+      );
+    } else {
+      await this.db.runAsync(
+        'UPDATE categorias SET nome = ?, icone = ?, cor = ?, limite_mensal = ? WHERE id = ?;',
+        nome.trim(),
+        icone,
+        cor,
+        limiteMensal ?? null,
+        id
+      );
+    }
   }
 
   /**
@@ -93,7 +125,6 @@ export class CategoriesRepository {
           id
         );
       } else {
-        // Encontra a categoria "Outros" ou a primeira disponível diferente da que está sendo excluída
         const fallback = await this.db.getFirstAsync<{ id: number }>(
           "SELECT id FROM categorias WHERE id != ? AND (LOWER(nome) = 'outros' OR 1=1) LIMIT 1;",
           id

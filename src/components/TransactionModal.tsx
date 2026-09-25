@@ -15,7 +15,7 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '../context/ThemeContext';
 import { useApp } from '../context/AppContext';
-import { TipoTransacao, Categoria, Transacao } from '../types';
+import { TipoTransacao, Transacao } from '../types';
 import {
   formatarMoeda,
   converterCentavosParaValor,
@@ -28,6 +28,7 @@ import { AppHaptics } from '../utils/haptics';
 import { NotificationService } from '../services/notificationService';
 
 const OPCOES_PARCELAS = [2, 3, 4, 5, 6, 8, 10, 12, 18, 24];
+const DIAS_RAPIDOS = [1, 5, 10, 12, 15, 20, 25, 28, 30];
 
 interface TransactionModalProps {
   visivel: boolean;
@@ -53,6 +54,13 @@ export const TransactionModal: React.FC<TransactionModalProps> = ({
   const [salvando, setSalvando] = useState(false);
   const [lembreteAtivo, setLembreteAtivo] = useState(false);
 
+  // Status Pago vs Pendente
+  const [pago, setPago] = useState(true);
+
+  // Seletor de data estendido
+  const [mostrarDiasCustom, setMostrarDiasCustom] = useState(false);
+  const [dataInputTexto, setDataInputTexto] = useState('');
+
   // Parcelamento
   const [isParcelado, setIsParcelado] = useState(false);
   const [numeroParcelas, setNumeroParcelas] = useState(3);
@@ -65,28 +73,38 @@ export const TransactionModal: React.FC<TransactionModalProps> = ({
   useEffect(() => {
     if (visivel) {
       setLembreteAtivo(false);
+      setMostrarDiasCustom(false);
+
       if (transacaoParaEdicao) {
         setTipo(transacaoParaEdicao.tipo);
         const centavos = Math.round(transacaoParaEdicao.valor * 100).toString();
         setValorTextoCentavos(centavos);
         setCategoriaId(transacaoParaEdicao.categoria_id);
         setDataIso(transacaoParaEdicao.data);
+        setDataInputTexto(formatarDataBr(transacaoParaEdicao.data));
         setDescricao(transacaoParaEdicao.descricao || '');
+        setPago(transacaoParaEdicao.pago !== 0);
         setIsParcelado(false); // Edição é pontual por parcela
       } else if (transacaoParaDuplicacao) {
         setTipo(transacaoParaDuplicacao.tipo);
         const centavos = Math.round(transacaoParaDuplicacao.valor * 100).toString();
         setValorTextoCentavos(centavos);
         setCategoriaId(transacaoParaDuplicacao.categoria_id);
-        setDataIso(getDataHojeIso()); // Data de hoje para a cópia
+        const hoje = getDataHojeIso();
+        setDataIso(hoje);
+        setDataInputTexto(formatarDataBr(hoje));
         setDescricao(transacaoParaDuplicacao.descricao ? `${transacaoParaDuplicacao.descricao} (Cópia)` : '');
+        setPago(true);
         setIsParcelado(false);
       } else {
         // Novo lançamento padrão
         setTipo('despesa');
         setValorTextoCentavos('');
-        setDataIso(getDataHojeIso());
+        const hoje = getDataHojeIso();
+        setDataIso(hoje);
+        setDataInputTexto(formatarDataBr(hoje));
         setDescricao('');
+        setPago(true);
         setIsParcelado(false);
         setNumeroParcelas(3);
         if (categorias.length > 0) {
@@ -117,6 +135,43 @@ export const TransactionModal: React.FC<TransactionModalProps> = ({
     }
   };
 
+  const selecionarDiaDoMes = (dia: number) => {
+    AppHaptics.toqueLeve();
+    const hoje = new Date();
+    const ano = hoje.getFullYear();
+    const mes = hoje.getMonth() + 1;
+    const dataAlvoIso = `${ano}-${String(mes).padStart(2, '0')}-${String(dia).padStart(2, '0')}`;
+    setDataIso(dataAlvoIso);
+    setDataInputTexto(formatarDataBr(dataAlvoIso));
+
+    // Se a data for futura, sugere como pendente
+    if (dataAlvoIso > getDataHojeIso()) {
+      setPago(false);
+    }
+  };
+
+  const handleDataTextoChange = (texto: string) => {
+    const limpo = texto.replace(/\D/g, '');
+    let formatado = limpo;
+    if (limpo.length > 2 && limpo.length <= 4) {
+      formatado = `${limpo.slice(0, 2)}/${limpo.slice(2)}`;
+    } else if (limpo.length > 4) {
+      formatado = `${limpo.slice(0, 2)}/${limpo.slice(2, 4)}/${limpo.slice(4, 8)}`;
+    }
+    setDataInputTexto(formatado);
+
+    if (limpo.length === 8) {
+      const d = limpo.slice(0, 2);
+      const m = limpo.slice(2, 4);
+      const a = limpo.slice(4, 8);
+      const iso = `${a}-${m}-${d}`;
+      setDataIso(iso);
+      if (iso > getDataHojeIso()) {
+        setPago(false);
+      }
+    }
+  };
+
   const valorNumerico = converterCentavosParaValor(valorTextoCentavos);
   const valorParcelaCalculado = isParcelado && numeroParcelas > 0 ? valorNumerico / numeroParcelas : valorNumerico;
 
@@ -141,6 +196,7 @@ export const TransactionModal: React.FC<TransactionModalProps> = ({
           categoria_id: categoriaId,
           data: dataIso,
           descricao: descricao.trim(),
+          pago: pago ? 1 : 0,
         });
       } else if (isParcelado && tipo === 'despesa') {
         // Criação de compra parcelada
@@ -153,6 +209,7 @@ export const TransactionModal: React.FC<TransactionModalProps> = ({
             descricao: descricao.trim(),
             conciliado: 0,
             origem: 'manual',
+            pago: pago ? 1 : 0,
           },
           numeroParcelas,
           valorNumerico
@@ -166,6 +223,7 @@ export const TransactionModal: React.FC<TransactionModalProps> = ({
           descricao: descricao.trim(),
           conciliado: 0,
           origem: 'manual',
+          pago: pago ? 1 : 0,
         });
       }
 
@@ -276,6 +334,44 @@ export const TransactionModal: React.FC<TransactionModalProps> = ({
               />
             </View>
 
+            {/* Status Pago vs Pendente */}
+            <View style={[styles.cardStatus, { backgroundColor: theme.inputBg, borderColor: theme.inputBorder }]}>
+              <View style={styles.linhaToggleStatus}>
+                <View style={styles.infoTextoStatus}>
+                  <Ionicons
+                    name={pago ? 'checkmark-circle' : 'time-outline'}
+                    size={22}
+                    color={pago ? theme.success : theme.warning}
+                  />
+                  <View style={{ marginLeft: 10, flex: 1 }}>
+                    <Text style={[styles.tituloStatus, { color: theme.text }]}>
+                      {pago
+                        ? tipo === 'despesa'
+                          ? 'Já foi Paga (Realizada)'
+                          : 'Já foi Recebida'
+                        : tipo === 'despesa'
+                        ? 'Pendente (A Vencer)'
+                        : 'A Receber (Pendente)'}
+                    </Text>
+                    <Text style={[styles.subtituloStatus, { color: theme.textSecondary }]}>
+                      {pago
+                        ? 'Desconta/Soma no Saldo Atual de hoje'
+                        : 'Boleto futuro: entra apenas na previsão do fim do mês'}
+                    </Text>
+                  </View>
+                </View>
+                <Switch
+                  value={pago}
+                  onValueChange={(val) => {
+                    AppHaptics.toqueSelecao();
+                    setPago(val);
+                  }}
+                  thumbColor={pago ? theme.success : '#F4F4F5'}
+                  trackColor={{ false: '#71717A', true: theme.successLight }}
+                />
+              </View>
+            </View>
+
             {/* Opção de Compra Parcelada (apenas para despesas novas) */}
             {tipo === 'despesa' && !transacaoParaEdicao && (
               <View style={[styles.cardParcelamento, { backgroundColor: theme.inputBg, borderColor: theme.inputBorder }]}>
@@ -338,7 +434,7 @@ export const TransactionModal: React.FC<TransactionModalProps> = ({
                           </Text>
                         </Text>
                         <Text style={[styles.subtextoResumoParcelas, { color: theme.textSecondary }]}>
-                          Gera lançamentos automáticos mês a mês a partir da data informada.
+                          A 1ª parcela segue o status escolhido; as parcelas futuras nascem como Pendentes mês a mês.
                         </Text>
                       </View>
                     )}
@@ -401,15 +497,28 @@ export const TransactionModal: React.FC<TransactionModalProps> = ({
               })}
             </ScrollView>
 
-            {/* Seletor de Data Rápido (Hoje, Ontem) */}
-            <Text style={[styles.labelSecao, { color: theme.textSecondary, marginTop: 14 }]}>
-              Data do Lançamento
-            </Text>
+            {/* Seletor de Data Flexível */}
+            <View style={[styles.secaoTituloLinha, { marginTop: 14 }]}>
+              <Text style={[styles.labelSecao, { color: theme.textSecondary }]}>Data de Vencimento / Pagamento</Text>
+              <TouchableOpacity
+                onPress={() => {
+                  AppHaptics.toqueLeve();
+                  setMostrarDiasCustom(!mostrarDiasCustom);
+                }}
+              >
+                <Text style={[styles.textoNovaCategoriaInline, { color: theme.primary }]}>
+                  {mostrarDiasCustom ? 'Ocultar Calendário' : 'Outro Dia...'}
+                </Text>
+              </TouchableOpacity>
+            </View>
+
             <View style={styles.linhaBotoesData}>
               <TouchableOpacity
                 onPress={() => {
                   AppHaptics.toqueLeve();
-                  setDataIso(getDataHojeIso());
+                  const hoje = getDataHojeIso();
+                  setDataIso(hoje);
+                  setDataInputTexto(formatarDataBr(hoje));
                 }}
                 style={[
                   styles.botaoDataRapida,
@@ -432,7 +541,9 @@ export const TransactionModal: React.FC<TransactionModalProps> = ({
               <TouchableOpacity
                 onPress={() => {
                   AppHaptics.toqueLeve();
-                  setDataIso(getDataOntemIso());
+                  const ontem = getDataOntemIso();
+                  setDataIso(ontem);
+                  setDataInputTexto(formatarDataBr(ontem));
                 }}
                 style={[
                   styles.botaoDataRapida,
@@ -452,6 +563,63 @@ export const TransactionModal: React.FC<TransactionModalProps> = ({
                 </Text>
               </TouchableOpacity>
             </View>
+
+            {/* Seletor de Dia do Mês e Data Livre */}
+            {mostrarDiasCustom && (
+              <View style={[styles.boxDiasCustom, { backgroundColor: theme.inputBg, borderColor: theme.inputBorder }]}>
+                <Text style={[styles.labelSecaoPequena, { color: theme.textSecondary }]}>
+                  Vencimento Rápido no Mês Atual:
+                </Text>
+                <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.scrollDiasRapidos}>
+                  {DIAS_RAPIDOS.map((d) => (
+                    <TouchableOpacity
+                      key={d}
+                      onPress={() => selecionarDiaDoMes(d)}
+                      style={[
+                        styles.chipDia,
+                        {
+                          backgroundColor: dataIso.endsWith(`-${String(d).padStart(2, '0')}`)
+                            ? theme.primary
+                            : theme.card,
+                          borderColor: dataIso.endsWith(`-${String(d).padStart(2, '0')}`)
+                            ? theme.primary
+                            : theme.cardBorder,
+                        },
+                      ]}
+                    >
+                      <Text
+                        style={[
+                          styles.textoChipDia,
+                          {
+                            color: dataIso.endsWith(`-${String(d).padStart(2, '0')}`)
+                              ? '#FFFFFF'
+                              : theme.text,
+                          },
+                        ]}
+                      >
+                        Dia {d}
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
+                </ScrollView>
+
+                <View style={styles.linhaInputDataManual}>
+                  <Text style={[styles.labelInputManual, { color: theme.textSecondary }]}>Ou digite a data:</Text>
+                  <TextInput
+                    style={[
+                      styles.inputDataManual,
+                      { backgroundColor: theme.card, borderColor: theme.cardBorder, color: theme.text },
+                    ]}
+                    placeholder="DD/MM/AAAA"
+                    placeholderTextColor={theme.textMuted}
+                    value={dataInputTexto}
+                    onChangeText={handleDataTextoChange}
+                    keyboardType="numeric"
+                    maxLength={10}
+                  />
+                </View>
+              </View>
+            )}
 
             {/* Input Descrição Opcional */}
             <Text style={[styles.labelSecao, { color: theme.textSecondary, marginTop: 14 }]}>
@@ -508,7 +676,7 @@ export const TransactionModal: React.FC<TransactionModalProps> = ({
                 ? 'Atualizar Lançamento'
                 : isParcelado
                 ? `Salvar Compra em ${numeroParcelas}x`
-                : `Salvar ${tipo === 'despesa' ? 'Despesa' : 'Receita'}`}
+                : `Salvar ${tipo === 'despesa' ? (pago ? 'Despesa Paga' : 'Boleto Pendente') : (pago ? 'Receita Recebida' : 'Receita Pendente')}`}
             </Text>
           </TouchableOpacity>
         </View>
@@ -557,7 +725,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     borderRadius: 14,
     padding: 4,
-    marginBottom: 14,
+    marginBottom: 10,
   },
   toggleBotao: {
     flex: 1,
@@ -576,7 +744,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    marginVertical: 6,
+    marginVertical: 4,
   },
   labelMoeda: {
     fontSize: 28,
@@ -589,11 +757,36 @@ const styles = StyleSheet.create({
     minWidth: 140,
     textAlign: 'left',
   },
+  cardStatus: {
+    borderRadius: 14,
+    borderWidth: 1,
+    padding: 12,
+    marginBottom: 10,
+  },
+  linhaToggleStatus: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  infoTextoStatus: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+    marginRight: 8,
+  },
+  tituloStatus: {
+    fontSize: 14,
+    fontWeight: '700',
+  },
+  subtituloStatus: {
+    fontSize: 11,
+    marginTop: 2,
+  },
   cardParcelamento: {
     borderRadius: 14,
     borderWidth: 1,
     padding: 12,
-    marginBottom: 12,
+    marginBottom: 10,
   },
   linhaToggleParcelado: {
     flexDirection: 'row',
@@ -651,7 +844,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    marginTop: 8,
+    marginTop: 6,
     marginBottom: 8,
   },
   labelSecao: {
@@ -690,7 +883,7 @@ const styles = StyleSheet.create({
   linhaBotoesData: {
     flexDirection: 'row',
     gap: 10,
-    marginTop: 8,
+    marginTop: 4,
   },
   botaoDataRapida: {
     flex: 1,
@@ -703,19 +896,58 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: '600',
   },
+  boxDiasCustom: {
+    borderRadius: 12,
+    borderWidth: 1,
+    padding: 10,
+    marginTop: 8,
+  },
+  scrollDiasRapidos: {
+    flexDirection: 'row',
+    gap: 6,
+    paddingVertical: 4,
+  },
+  chipDia: {
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 8,
+    borderWidth: 1,
+  },
+  textoChipDia: {
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  linhaInputDataManual: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 8,
+    gap: 10,
+  },
+  labelInputManual: {
+    fontSize: 12,
+  },
+  inputDataManual: {
+    flex: 1,
+    height: 38,
+    borderRadius: 8,
+    borderWidth: 1,
+    paddingHorizontal: 10,
+    fontSize: 13,
+    fontWeight: '700',
+  },
   inputDescricao: {
     height: 48,
     borderRadius: 12,
     borderWidth: 1,
     paddingHorizontal: 14,
     fontSize: 14,
-    marginTop: 8,
+    marginTop: 6,
   },
   cardLembrete: {
     borderRadius: 14,
     borderWidth: 1,
     padding: 12,
-    marginTop: 12,
+    marginTop: 10,
   },
   linhaToggleLembrete: {
     flexDirection: 'row',
@@ -742,7 +974,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    marginTop: 18,
+    marginTop: 16,
   },
   textoBotaoSalvar: {
     color: '#FFFFFF',

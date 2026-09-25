@@ -32,11 +32,13 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
     resumoMes,
     rankingGastos,
     transacoesRecentes,
+    tetoDiario,
     carregarDadosPainel,
     abrirModalEditarLancamento,
     abrirModalDuplicarLancamento,
     transactionsRepo,
     notificarMudancaDados,
+    alternarStatusPago,
     modoPrivacidade,
     alternarModoPrivacidade,
     formatarValor,
@@ -63,11 +65,11 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
       {/* Seletor de Mês */}
       <MonthSelector mesAno={mesSelecionado} onMesChange={setMesSelecionado} />
 
-      {/* Card Principal de Saldo do Mês */}
+      {/* Card Principal de Saldo: Realizado vs Previsto */}
       <View style={[styles.cardSaldo, { backgroundColor: theme.card, borderColor: theme.cardBorder }]}>
         <View style={styles.topoCardSaldo}>
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-            <Text style={[styles.labelSaldo, { color: theme.textSecondary }]}>Saldo do Mês</Text>
+            <Text style={[styles.labelSaldo, { color: theme.textSecondary }]}>Saldo em Caixa Hoje</Text>
             <TouchableOpacity onPress={alternarModoPrivacidade} style={{ padding: 4 }}>
               <Ionicons
                 name={modoPrivacidade ? 'eye-off-outline' : 'eye-outline'}
@@ -82,14 +84,31 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
           </View>
         </View>
 
+        {/* Saldo Realizado (em conta hoje) */}
         <Text
           style={[
             styles.valorSaldo,
-            { color: resumoMes.saldo >= 0 ? theme.text : theme.danger },
+            { color: resumoMes.saldoRealizado >= 0 ? theme.text : theme.danger },
           ]}
         >
-          {formatarValor(resumoMes.saldo)}
+          {formatarValor(resumoMes.saldoRealizado)}
         </Text>
+
+        {/* Linha de Projeção do Fim do Mês */}
+        <View style={styles.linhaPrevisao}>
+          <Ionicons name="calendar-outline" size={14} color={theme.textSecondary} />
+          <Text style={[styles.textoPrevisao, { color: theme.textSecondary }]}>
+            Previsão no fim do mês:{' '}
+            <Text
+              style={{
+                fontWeight: '800',
+                color: resumoMes.saldo >= 0 ? theme.success : theme.danger,
+              }}
+            >
+              {formatarValor(resumoMes.saldo)}
+            </Text>
+          </Text>
+        </View>
 
         <View style={styles.divisor} />
 
@@ -103,8 +122,13 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
               <Text style={[styles.labelMetrica, { color: theme.textSecondary }]}>Receitas</Text>
             </View>
             <Text style={[styles.valorMetrica, { color: theme.success }]}>
-              {formatarValor(resumoMes.receitas)}
+              {formatarValor(resumoMes.receitasRealizadas)}
             </Text>
+            {resumoMes.receitasPendentes > 0 && (
+              <Text style={[styles.subtextoMetrica, { color: theme.textMuted }]}>
+                +{formatarValor(resumoMes.receitasPendentes)} a receber
+              </Text>
+            )}
           </View>
 
           {/* Despesas */}
@@ -113,14 +137,77 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
               <View style={[styles.circuloMetrica, { backgroundColor: theme.dangerLight }]}>
                 <Ionicons name="arrow-down" size={16} color={theme.danger} />
               </View>
-              <Text style={[styles.labelMetrica, { color: theme.textSecondary }]}>Despesas</Text>
+              <Text style={[styles.labelMetrica, { color: theme.textSecondary }]}>Despesas Pagas</Text>
             </View>
             <Text style={[styles.valorMetrica, { color: theme.danger }]}>
-              {formatarValor(resumoMes.despesas)}
+              {formatarValor(resumoMes.despesasRealizadas)}
             </Text>
+            {resumoMes.despesasPendentes > 0 && (
+              <Text style={[styles.subtextoMetrica, { color: theme.warning }]}>
+                {formatarValor(resumoMes.despesasPendentes)} a pagar
+              </Text>
+            )}
           </View>
         </View>
       </View>
+
+      {/* Alerta de Contas a Pagar / Pendentes */}
+      {resumoMes.contasPendentesQtd > 0 && (
+        <TouchableOpacity
+          activeOpacity={0.85}
+          onPress={onNavegarParaHistorico}
+          style={[
+            styles.alertaSangria,
+            {
+              backgroundColor: theme.card,
+              borderColor: theme.warning,
+              marginTop: 12,
+            },
+          ]}
+        >
+          <View style={[styles.iconeSangria, { backgroundColor: theme.warningLight }]}>
+            <Ionicons name="time" size={24} color={theme.warning} />
+          </View>
+          <View style={styles.textosSangria}>
+            <View style={styles.linhaTituloSangria}>
+              <Text style={[styles.tituloSangria, { color: theme.warning }]}>
+                Contas Pendentes a Vencer
+              </Text>
+              <Text style={[styles.percentualSangria, { color: theme.warning }]}>
+                {resumoMes.contasPendentesQtd} conta{resumoMes.contasPendentesQtd > 1 ? 's' : ''}
+              </Text>
+            </View>
+            <Text style={[styles.descSangria, { color: theme.text }]}>
+              Total a pagar no mês:{' '}
+              <Text style={{ fontWeight: '800' }}>{formatarValor(resumoMes.contasPendentesValor)}</Text>. Toque para
+              conferir no histórico.
+            </Text>
+          </View>
+          <Ionicons name="chevron-forward" size={18} color={theme.textMuted} />
+        </TouchableOpacity>
+      )}
+
+      {/* Meta Diária de Sobrevivência (Burn Rate) */}
+      {tetoDiario && tetoDiario.diasRestantes > 0 && tetoDiario.disponivelDiario > 0 && (
+        <View
+          style={[
+            styles.bannerTetoDiario,
+            { backgroundColor: theme.card, borderColor: theme.cardBorder, marginTop: 10 },
+          ]}
+        >
+          <View style={[styles.iconeExtrato, { backgroundColor: theme.primaryLight }]}>
+            <Ionicons name="speedometer-outline" size={22} color={theme.primary} />
+          </View>
+          <View style={styles.textosExtrato}>
+            <Text style={[styles.tituloExtrato, { color: theme.text }]}>
+              Meta Diária Segura: {formatarValor(tetoDiario.disponivelDiario)} / dia
+            </Text>
+            <Text style={[styles.subtituloExtrato, { color: theme.textSecondary }]}>
+              Gaste até esse valor por dia nos próximos {tetoDiario.diasRestantes} dias para fechar o mês no azul.
+            </Text>
+          </View>
+        </View>
+      )}
 
       {/* Alerta de Sangria Financeira (Onde o dinheiro mais foi embora) */}
       {maiorSangria && maiorSangria.total > 0 && (
@@ -132,6 +219,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
             {
               backgroundColor: theme.card,
               borderColor: theme.danger,
+              marginTop: 10,
             },
           ]}
         >
@@ -178,6 +266,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
               {
                 backgroundColor: theme.card,
                 borderColor: theme.warning,
+                marginTop: 10,
               },
             ]}
           >
@@ -187,16 +276,16 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
             <View style={styles.textosSangria}>
               <View style={styles.linhaTituloSangria}>
                 <Text style={[styles.tituloSangria, { color: theme.warning }]}>
-                  Teto de Gastos Estourado
+                  Limite Estourado
                 </Text>
                 <Text style={[styles.percentualSangria, { color: theme.warning }]}>
-                  {primeira.percentualLimite?.toFixed(0)}% do teto
+                  {primeira.percentualLimite ? primeira.percentualLimite.toFixed(0) : 100}% do teto
                 </Text>
               </View>
               <Text style={[styles.descSangria, { color: theme.text }]}>
-                <Text style={{ fontWeight: '800' }}>{primeira.nome}</Text> estourou o limite em{' '}
+                <Text style={{ fontWeight: '800' }}>{primeira.nome}</Text> ultrapassou o teto em{' '}
                 <Text style={{ fontWeight: '800', color: theme.danger }}>
-                  {formatarMoeda(Math.abs(primeira.restanteLimite!))}
+                  {formatarMoeda(Math.abs(primeira.restanteLimite || 0))}
                 </Text>.
               </Text>
             </View>
@@ -269,6 +358,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
               transacao={t}
               onEditar={abrirModalEditarLancamento}
               onDuplicar={abrirModalDuplicarLancamento}
+              onAlternarPago={(item) => alternarStatusPago(item.id, item.pago === 0 ? 1 : 0)}
               onExcluir={async (item) => {
                 await transactionsRepo.excluir(item.id);
                 await notificarMudancaDados();
@@ -324,10 +414,19 @@ const styles = StyleSheet.create({
     fontWeight: '900',
     letterSpacing: -0.5,
   },
+  linhaPrevisao: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginTop: 4,
+  },
+  textoPrevisao: {
+    fontSize: 12,
+  },
   divisor: {
     height: 1,
     backgroundColor: 'rgba(150, 150, 150, 0.15)',
-    marginVertical: 16,
+    marginVertical: 14,
   },
   linhaMetricas: {
     flexDirection: 'row',
@@ -357,12 +456,16 @@ const styles = StyleSheet.create({
     fontSize: 17,
     fontWeight: '800',
   },
+  subtextoMetrica: {
+    fontSize: 11,
+    marginTop: 2,
+    fontWeight: '600',
+  },
   alertaSangria: {
     marginHorizontal: 16,
-    marginTop: 14,
     padding: 14,
     borderRadius: 16,
-    borderWidth: 1.5,
+    borderWidth: 1,
     flexDirection: 'row',
     alignItems: 'center',
   },
@@ -387,18 +490,25 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: '800',
     textTransform: 'uppercase',
-    letterSpacing: 0.5,
   },
   percentualSangria: {
     fontSize: 12,
-    fontWeight: '700',
+    fontWeight: '800',
   },
   descSangria: {
-    fontSize: 13,
+    fontSize: 12,
+  },
+  bannerTetoDiario: {
+    marginHorizontal: 16,
+    padding: 14,
+    borderRadius: 16,
+    borderWidth: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
   },
   bannerExtrato: {
     marginHorizontal: 16,
-    marginTop: 14,
+    marginTop: 12,
     padding: 14,
     borderRadius: 16,
     borderWidth: 1,
@@ -421,21 +531,21 @@ const styles = StyleSheet.create({
     fontWeight: '700',
   },
   subtituloExtrato: {
-    fontSize: 12,
+    fontSize: 11,
     marginTop: 2,
   },
   secaoRecentes: {
-    marginTop: 20,
+    marginTop: 18,
     paddingHorizontal: 16,
   },
   cabecalhoSecao: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    marginBottom: 12,
+    marginBottom: 10,
   },
   tituloSecao: {
-    fontSize: 17,
+    fontSize: 16,
     fontWeight: '800',
   },
   linkVerTodos: {
@@ -443,7 +553,7 @@ const styles = StyleSheet.create({
     fontWeight: '700',
   },
   containerVazio: {
-    padding: 24,
+    padding: 30,
     borderRadius: 16,
     borderWidth: 1,
     alignItems: 'center',
@@ -455,7 +565,7 @@ const styles = StyleSheet.create({
     marginTop: 10,
   },
   subtituloVazio: {
-    fontSize: 13,
+    fontSize: 12,
     textAlign: 'center',
     marginTop: 4,
   },

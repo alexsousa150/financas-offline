@@ -10,6 +10,7 @@ interface TransactionItemProps {
   onEditar?: (transacao: Transacao) => void;
   onDuplicar?: (transacao: Transacao) => void;
   onExcluir?: (transacao: Transacao, excluirTodoGrupo?: boolean) => void;
+  onAlternarPago?: (transacao: Transacao) => void;
 }
 
 export const TransactionItem: React.FC<TransactionItemProps> = ({
@@ -17,6 +18,7 @@ export const TransactionItem: React.FC<TransactionItemProps> = ({
   onEditar,
   onDuplicar,
   onExcluir,
+  onAlternarPago,
 }) => {
   const { theme } = useTheme();
   const isDespesa = transacao.tipo === 'despesa';
@@ -27,6 +29,7 @@ export const TransactionItem: React.FC<TransactionItemProps> = ({
   const iconeCategoria = (transacao.categoria_icone as any) || 'pricetag-outline';
 
   const isParcelado = Boolean(transacao.total_parcelas && transacao.total_parcelas > 1);
+  const isPendente = transacao.pago === 0;
 
   const confirmarExclusao = () => {
     if (isParcelado && transacao.grupo_parcelamento_id) {
@@ -66,7 +69,14 @@ export const TransactionItem: React.FC<TransactionItemProps> = ({
     <TouchableOpacity
       activeOpacity={0.7}
       onPress={() => onEditar && onEditar(transacao)}
-      style={[styles.container, { backgroundColor: theme.card, borderColor: theme.cardBorder }]}
+      style={[
+        styles.container,
+        {
+          backgroundColor: theme.card,
+          borderColor: isPendente ? theme.warning : theme.cardBorder,
+          opacity: isPendente ? 0.92 : 1,
+        },
+      ]}
     >
       <View style={styles.esquerda}>
         <View style={[styles.iconeContainer, { backgroundColor: corCategoria + '22' }]}>
@@ -89,15 +99,26 @@ export const TransactionItem: React.FC<TransactionItemProps> = ({
               </View>
             )}
 
-            {transacao.conciliado === 1 && (
-              <View style={[styles.badgeConciliado, { backgroundColor: theme.successLight }]}>
-                <Ionicons name="checkmark-done" size={12} color={theme.success} />
-                <Text style={[styles.textoBadge, { color: theme.success }]}>Conciliado</Text>
+            {/* Badge de Pendente / Pago */}
+            {isPendente ? (
+              <TouchableOpacity
+                onPress={() => onAlternarPago && onAlternarPago(transacao)}
+                style={[styles.badgePendente, { backgroundColor: theme.warningLight, borderColor: theme.warning }]}
+              >
+                <Ionicons name="time-outline" size={11} color={theme.warning} />
+                <Text style={[styles.textoBadge, { color: theme.warning, fontWeight: '700' }]}>Pendente</Text>
+              </TouchableOpacity>
+            ) : (
+              <View style={[styles.badgePago, { backgroundColor: theme.successLight }]}>
+                <Ionicons name="checkmark-sharp" size={11} color={theme.success} />
+                <Text style={[styles.textoBadge, { color: theme.success }]}>Pago</Text>
               </View>
             )}
-            {transacao.origem === 'importado' && transacao.conciliado !== 1 && (
-              <View style={[styles.badgeImportado, { backgroundColor: theme.warningLight }]}>
-                <Text style={[styles.textoBadge, { color: theme.warning }]}>Extrato</Text>
+
+            {transacao.conciliado === 1 && (
+              <View style={[styles.badgeConciliado, { backgroundColor: theme.successLight }]}>
+                <Ionicons name="checkmark-done" size={11} color={theme.success} />
+                <Text style={[styles.textoBadge, { color: theme.success }]}>Conciliado</Text>
               </View>
             )}
           </View>
@@ -108,18 +129,34 @@ export const TransactionItem: React.FC<TransactionItemProps> = ({
             </Text>
           )}
 
-          <Text style={[styles.data, { color: theme.textMuted }]}>
-            {formatarDataBr(transacao.data)}
+          <Text style={[styles.data, { color: isPendente ? theme.warning : theme.textMuted }]}>
+            {isPendente ? '⏰ Vence em: ' : ''}{formatarDataBr(transacao.data)}
           </Text>
         </View>
       </View>
 
       <View style={styles.direita}>
-        <Text style={[styles.valor, { color: corValor }]}>
+        <Text style={[styles.valor, { color: isPendente ? theme.warning : corValor }]}>
           {sinal} {formatarMoeda(transacao.valor)}
         </Text>
 
         <View style={styles.acoes}>
+          {onAlternarPago && (
+            <TouchableOpacity
+              onPress={() => onAlternarPago(transacao)}
+              style={[
+                styles.botaoAcao,
+                { backgroundColor: isPendente ? theme.warningLight : theme.inputBg },
+              ]}
+              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+            >
+              <Ionicons
+                name={isPendente ? 'time' : 'checkmark-circle'}
+                size={15}
+                color={isPendente ? theme.warning : theme.success}
+              />
+            </TouchableOpacity>
+          )}
           {onDuplicar && (
             <TouchableOpacity
               onPress={() => onDuplicar(transacao)}
@@ -174,11 +211,12 @@ const styles = StyleSheet.create({
   linhaTitulo: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
     flexWrap: 'wrap',
+    gap: 6,
+    marginBottom: 2,
   },
   categoria: {
-    fontSize: 15,
+    fontSize: 14,
     fontWeight: '700',
   },
   badgeParcela: {
@@ -193,6 +231,23 @@ const styles = StyleSheet.create({
     fontSize: 10,
     fontWeight: '800',
   },
+  badgePendente: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 6,
+    borderWidth: 1,
+    gap: 3,
+  },
+  badgePago: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 6,
+    gap: 3,
+  },
   badgeConciliado: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -201,34 +256,28 @@ const styles = StyleSheet.create({
     borderRadius: 6,
     gap: 3,
   },
-  badgeImportado: {
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    borderRadius: 6,
-  },
   textoBadge: {
     fontSize: 10,
-    fontWeight: '700',
+    fontWeight: '600',
   },
   descricao: {
-    fontSize: 13,
-    marginTop: 2,
+    fontSize: 12,
+    marginBottom: 2,
   },
   data: {
     fontSize: 11,
-    marginTop: 3,
+    fontWeight: '600',
   },
   direita: {
     alignItems: 'flex-end',
   },
   valor: {
-    fontSize: 15,
+    fontSize: 14,
     fontWeight: '800',
+    marginBottom: 6,
   },
   acoes: {
     flexDirection: 'row',
-    alignItems: 'center',
-    marginTop: 6,
     gap: 6,
   },
   botaoAcao: {
