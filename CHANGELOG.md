@@ -5,6 +5,23 @@ O formato é baseado no [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.
 
 ---
 
+## [1.6.1] - 2026-09-26
+
+### Correções críticas de compilação e EAS Build
+- **Estabilização de módulos nativos Android**: Remoção de `expo-quick-actions`, cujos scripts legados de compilação nativa quebravam a compilação do Android SDK 57 nos servidores da nuvem do EAS.
+- **Sincronização estrita de dependências**: Regeneração completa do `package-lock.json` e inclusão de `.npmrc` com `legacy-peer-deps=true`, garantindo aprovação com código 0 na etapa `npm ci --include=dev` do EAS Build.
+- **Saneamento do `app.json`**: Eliminação de chaves duplicadas e plugins não configurados.
+
+### Adaptação e refinamento de layout (Redmi Note 12 e telas modernas)
+- **Correção da sobreposição da barra de status e câmera**: Inclusão de `useSafeAreaInsets` no topo de todas as abas, impedindo colisão do cabeçalho com o relógio, bateria e furo de câmera frontal.
+- **Harmonização do cabeçalho**: Seletor de mês flexível com altura padronizada (44px), perfeitamente alinhado aos botões de Categorias e Ajustes.
+- **Card Hero do Saldo redesenhado**: Cantos arredondados de 24px, borda refinada e sombra sutil. Valores de *Recebido* e *Pago* organizados em cards simétricos coloridos e máscara de privacidade corrigida para valores neutros.
+- **Orçamentos com alinhamento e largura corrigidos**: Título alinhado à régua da tela (16px), cards alargados para 250px e prevenção de quebra de linhas na exibição de limites.
+- **Limpeza de lançamentos recentes**: Remoção do amontoado de botões redundantes na lista. Valor em destaque, alternância de status *Pago*/*Pendente* com um toque no selo e menu rápido via toque longo.
+- **Reposicionamento do botão flutuante (+ Novo)**: Posição ajustada para flutuar 20px acima da barra de navegação com respiro amplo de rolagem (`paddingBottom: 130`).
+
+---
+
 ## [1.6.0] - 2026-09-26
 
 ### Atalhos no ícone do celular (App Shortcuts)
