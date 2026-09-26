@@ -6,6 +6,7 @@ import { Stack } from 'expo-router';
 import { DATABASE_NAME, inicializarBanco } from '../database/db';
 import { ThemeProvider, useTheme } from '../context/ThemeContext';
 import { AppProvider, useApp } from '../context/AppContext';
+import { ModalProvider } from '../context/ModalContext';
 
 import { TransactionModal } from '../components/TransactionModal';
 import { CategoryModal } from '../components/CategoryModal';
@@ -106,9 +107,11 @@ export default function RootLayout() {
         <Suspense fallback={<TelaCarregamento />}>
           <SQLiteProvider databaseName={DATABASE_NAME} onInit={inicializarBanco} useSuspense={false}>
             <ThemeProvider>
-              <AppProvider>
-                <RootProvidersAndModals />
-              </AppProvider>
+              <ModalProvider>
+                <AppProvider>
+                  <RootProvidersAndModals />
+                </AppProvider>
+              </ModalProvider>
             </ThemeProvider>
           </SQLiteProvider>
         </Suspense>

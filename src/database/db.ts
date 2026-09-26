@@ -92,64 +92,94 @@ export async function inicializarBanco(db: SQLiteDatabase): Promise<void> {
       categoria_id INTEGER NOT NULL REFERENCES categorias(id),
       frequencia INTEGER DEFAULT 1
     );
+
+    CREATE TABLE IF NOT EXISTS schema_migrations (
+      versao INTEGER PRIMARY KEY,
+      descricao TEXT NOT NULL,
+      executada_em TEXT DEFAULT CURRENT_TIMESTAMP
+    );
   `);
 
-  // 1. Migrações seguras de colunas em 'categorias' para bancos já existentes
-  try {
-    const colunasCategorias = await db.getAllAsync<{ name: string }>('PRAGMA table_info(categorias);');
-    const nomesCategorias = new Set(colunasCategorias.map((c) => c.name.toLowerCase()));
+  // Helper para executar migrações versionadas ordenadas e atômicas
+  const executarMigracao = async (
+    versao: number,
+    descricao: string,
+    migracaoFn: () => Promise<void>
+  ) => {
+    const jaExecutada = await db.getFirstAsync<{ versao: number }>(
+      'SELECT versao FROM schema_migrations WHERE versao = ?;',
+      versao
+    );
+    if (jaExecutada) return;
 
-    if (!nomesCategorias.has('limite_mensal')) {
-      await db.execAsync(`ALTER TABLE categorias ADD COLUMN limite_mensal REAL DEFAULT NULL;`);
-    }
-    if (!nomesCategorias.has('tipo_gasto')) {
-      await db.execAsync(`ALTER TABLE categorias ADD COLUMN tipo_gasto TEXT DEFAULT 'essencial';`);
-    }
-  } catch (e) {
-    console.warn('Erro ao verificar/migrar colunas de categorias:', e);
-  }
+    await migracaoFn();
+    await db.runAsync(
+      'INSERT INTO schema_migrations (versao, descricao) VALUES (?, ?);',
+      versao,
+      descricao
+    );
+    await db.execAsync(`PRAGMA user_version = ${versao};`);
+  };
 
-  // 2. Migrações seguras de colunas em 'transacoes' para bancos já existentes (ANTES dos índices!)
-  try {
-    const colunasTransacoes = await db.getAllAsync<{ name: string }>('PRAGMA table_info(transacoes);');
-    const nomesTransacoes = new Set(colunasTransacoes.map((c) => c.name.toLowerCase()));
+  // Migração 1: Garantia de colunas extras em categorias e transações
+  await executarMigracao(1, 'Colunas extras em categorias e transacoes', async () => {
+    try {
+      const colunasCategorias = await db.getAllAsync<{ name: string }>('PRAGMA table_info(categorias);');
+      const nomesCategorias = new Set(colunasCategorias.map((c) => c.name.toLowerCase()));
+      if (!nomesCategorias.has('limite_mensal')) {
+        await db.execAsync(`ALTER TABLE categorias ADD COLUMN limite_mensal REAL DEFAULT NULL;`);
+      }
+      if (!nomesCategorias.has('tipo_gasto')) {
+        await db.execAsync(`ALTER TABLE categorias ADD COLUMN tipo_gasto TEXT DEFAULT 'essencial';`);
+      }
+    } catch (e) {
+      console.warn('Migração 1 (categorias):', e);
+    }
 
-    if (!nomesTransacoes.has('pago')) {
-      await db.execAsync(`ALTER TABLE transacoes ADD COLUMN pago INTEGER DEFAULT 1;`);
+    try {
+      const colunasTransacoes = await db.getAllAsync<{ name: string }>('PRAGMA table_info(transacoes);');
+      const nomesTransacoes = new Set(colunasTransacoes.map((c) => c.name.toLowerCase()));
+      if (!nomesTransacoes.has('pago')) {
+        await db.execAsync(`ALTER TABLE transacoes ADD COLUMN pago INTEGER DEFAULT 1;`);
+      }
+      if (!nomesTransacoes.has('parcela_atual')) {
+        await db.execAsync(`ALTER TABLE transacoes ADD COLUMN parcela_atual INTEGER DEFAULT NULL;`);
+      }
+      if (!nomesTransacoes.has('total_parcelas')) {
+        await db.execAsync(`ALTER TABLE transacoes ADD COLUMN total_parcelas INTEGER DEFAULT NULL;`);
+      }
+      if (!nomesTransacoes.has('grupo_parcelamento_id')) {
+        await db.execAsync(`ALTER TABLE transacoes ADD COLUMN grupo_parcelamento_id TEXT DEFAULT NULL;`);
+      }
+    } catch (e) {
+      console.warn('Migração 1 (transações):', e);
     }
-    if (!nomesTransacoes.has('parcela_atual')) {
-      await db.execAsync(`ALTER TABLE transacoes ADD COLUMN parcela_atual INTEGER DEFAULT NULL;`);
-    }
-    if (!nomesTransacoes.has('total_parcelas')) {
-      await db.execAsync(`ALTER TABLE transacoes ADD COLUMN total_parcelas INTEGER DEFAULT NULL;`);
-    }
-    if (!nomesTransacoes.has('grupo_parcelamento_id')) {
-      await db.execAsync(`ALTER TABLE transacoes ADD COLUMN grupo_parcelamento_id TEXT DEFAULT NULL;`);
-    }
-  } catch (e) {
-    console.warn('Erro ao verificar/migrar colunas de transações:', e);
-  }
+  });
 
-  // 3. Normalização de dados legados (preenche NULLs caso existam)
-  try {
+  // Migração 2: Normalização de dados legados
+  await executarMigracao(2, 'Normalizacao de dados nulos', async () => {
+    try {
+      await db.execAsync(`
+        UPDATE transacoes SET pago = 1 WHERE pago IS NULL;
+        UPDATE categorias SET tipo_gasto = 'essencial' WHERE tipo_gasto IS NULL;
+      `);
+    } catch (e) {
+      // Ignora se der erro
+    }
+  });
+
+  // Migração 3: Criação de índices individuais e compostos de alta performance
+  await executarMigracao(3, 'Indices de busca e compostos', async () => {
     await db.execAsync(`
-      UPDATE transacoes SET pago = 1 WHERE pago IS NULL;
-      UPDATE categorias SET tipo_gasto = 'essencial' WHERE tipo_gasto IS NULL;
+      CREATE INDEX IF NOT EXISTS idx_transacoes_data ON transacoes(data);
+      CREATE INDEX IF NOT EXISTS idx_transacoes_categoria ON transacoes(categoria_id);
+      CREATE INDEX IF NOT EXISTS idx_transacoes_tipo ON transacoes(tipo);
+      CREATE INDEX IF NOT EXISTS idx_transacoes_grupo ON transacoes(grupo_parcelamento_id);
+      CREATE INDEX IF NOT EXISTS idx_transacoes_pago ON transacoes(pago);
+      CREATE INDEX IF NOT EXISTS idx_transacoes_data_tipo ON transacoes(data, tipo);
+      CREATE INDEX IF NOT EXISTS idx_transacoes_data_pago ON transacoes(data, pago);
     `);
-  } catch (e) {
-    // Ignora se der erro
-  }
-
-  // 4. Criação de índices SOMENTE AGORA (todas as colunas têm garantia absoluta de existência)
-  await db.execAsync(`
-    CREATE INDEX IF NOT EXISTS idx_transacoes_data ON transacoes(data);
-    CREATE INDEX IF NOT EXISTS idx_transacoes_categoria ON transacoes(categoria_id);
-    CREATE INDEX IF NOT EXISTS idx_transacoes_tipo ON transacoes(tipo);
-    CREATE INDEX IF NOT EXISTS idx_transacoes_grupo ON transacoes(grupo_parcelamento_id);
-    CREATE INDEX IF NOT EXISTS idx_transacoes_pago ON transacoes(pago);
-    CREATE INDEX IF NOT EXISTS idx_transacoes_data_tipo ON transacoes(data, tipo);
-    CREATE INDEX IF NOT EXISTS idx_transacoes_data_pago ON transacoes(data, pago);
-  `);
+  });
 
   // 5. Verifica se categorias padrão já existem, se não, semeia
   const categoriasContagem = await db.getFirstAsync<{ count: number }>(

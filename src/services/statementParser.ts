@@ -1,4 +1,4 @@
-import { TipoTransacao } from '../types';
+import type { TipoTransacao } from '../types/index.ts';
 
 export interface ItemExtratoBruto {
   data: string; // YYYY-MM-DD

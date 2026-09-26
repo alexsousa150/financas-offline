@@ -17,6 +17,7 @@ export interface FiltrosTransacao {
   pago?: number; // 0 = pendente, 1 = pago
   busca?: string;
   limite?: number;
+  offset?: number;
 }
 
 export class TransactionsRepository {
@@ -80,6 +81,10 @@ export class TransactionsRepository {
     if (filtros.limite && filtros.limite > 0) {
       sql += ` LIMIT ?`;
       params.push(filtros.limite);
+      if (filtros.offset && filtros.offset > 0) {
+        sql += ` OFFSET ?`;
+        params.push(filtros.offset);
+      }
     }
 
     return await this.db.getAllAsync<Transacao>(sql, ...params);

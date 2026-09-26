@@ -22,6 +22,7 @@ import {
 } from '../types';
 import { getMesAnoAtualIso, formatarMoeda, getDataHojeIso } from '../utils/formatters';
 import { AppHaptics } from '../utils/haptics';
+import { useModals } from './ModalContext';
 
 interface AppContextType {
   // Repositórios
@@ -143,16 +144,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [biometriaHabilitada, setBiometriaHabilitadaState] = useState(false);
   const [autenticado, setAutenticado] = useState(true);
 
-  // Estados dos modais globais
-  const [modalTransacaoAberto, setModalTransacaoAberto] = useState(false);
-  const [modalTransacaoTipoInicial, setModalTransacaoTipoInicial] = useState<TipoTransacao>('despesa');
-  const [transacaoParaEdicao, setTransacaoParaEdicao] = useState<Transacao | null>(null);
-  const [transacaoParaDuplicacao, setTransacaoParaDuplicacao] = useState<Transacao | null>(null);
-
-  const [modalCategoriaAberto, setModalCategoriaAberto] = useState(false);
-  const [categoriaParaEdicao, setCategoriaParaEdicao] = useState<Categoria | null>(null);
-
-  const [modalRecorrentesAberto, setModalRecorrentesAberto] = useState(false);
+  // Delegação do estado dos modais globais para o ModalContext isolado
+  const modais = useModals();
 
   // Carrega configurações iniciais (Privacidade e Biometria)
   useEffect(() => {
@@ -339,66 +332,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     carregarDadosPainel();
   }, [carregarDadosPainel, mesSelecionado]);
 
-  // Controles do modal de transação
-  const abrirModalNovoLancamento = (tipoInicial: TipoTransacao = 'despesa') => {
-    AppHaptics.toqueLeve();
-    setModalTransacaoTipoInicial(tipoInicial);
-    setTransacaoParaEdicao(null);
-    setTransacaoParaDuplicacao(null);
-    setModalTransacaoAberto(true);
-  };
-
-  const abrirModalEditarLancamento = (transacao: Transacao) => {
-    AppHaptics.toqueLeve();
-    setTransacaoParaDuplicacao(null);
-    setTransacaoParaEdicao(transacao);
-    setModalTransacaoAberto(true);
-  };
-
-  const abrirModalDuplicarLancamento = (transacao: Transacao) => {
-    AppHaptics.toqueLeve();
-    setTransacaoParaEdicao(null);
-    setTransacaoParaDuplicacao(transacao);
-    setModalTransacaoAberto(true);
-  };
-
-  const fecharModalTransacao = () => {
-    setModalTransacaoAberto(false);
-    setTransacaoParaEdicao(null);
-    setTransacaoParaDuplicacao(null);
-  };
-
-  // Controles do modal de categoria
-  const abrirModalNovaCategoria = () => {
-    AppHaptics.toqueLeve();
-    setCategoriaParaEdicao(null);
-    setModalCategoriaAberto(true);
-  };
-
-  const abrirModalEditarCategoria = (categoria: Categoria) => {
-    AppHaptics.toqueLeve();
-    setCategoriaParaEdicao(categoria);
-    setModalCategoriaAberto(true);
-  };
-
-  const fecharModalCategoria = () => {
-    setModalCategoriaAberto(false);
-    setCategoriaParaEdicao(null);
-  };
-
-  // Controles do modal de fixos recorrentes
-  const abrirModalRecorrentes = () => {
-    AppHaptics.toqueLeve();
-    setModalRecorrentesAberto(true);
-  };
-
-  const fecharModalRecorrentes = () => {
-    setModalRecorrentesAberto(false);
-  };
-
   return (
     <AppContext.Provider
       value={{
+        ...modais,
         categoriesRepo,
         transactionsRepo,
         backupRepo,
@@ -435,22 +372,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         setBiometriaHabilitada,
         autenticado,
         setAutenticado,
-        modalTransacaoAberto,
-        modalTransacaoTipoInicial,
-        transacaoParaEdicao,
-        transacaoParaDuplicacao,
-        abrirModalNovoLancamento,
-        abrirModalEditarLancamento,
-        abrirModalDuplicarLancamento,
-        fecharModalTransacao,
-        modalCategoriaAberto,
-        categoriaParaEdicao,
-        abrirModalNovaCategoria,
-        abrirModalEditarCategoria,
-        fecharModalCategoria,
-        modalRecorrentesAberto,
-        abrirModalRecorrentes,
-        fecharModalRecorrentes,
         notificarMudancaDados,
       }}
     >

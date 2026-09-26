@@ -8,6 +8,7 @@ import {
   FlatList,
   ScrollView,
   RefreshControl,
+  ActivityIndicator,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '../context/ThemeContext';
@@ -40,26 +41,62 @@ export const HistoryScreen: React.FC = () => {
   const [tipoFiltro, setTipoFiltro] = useState<TipoTransacao | 'todos'>('todos');
   const [statusFiltro, setStatusFiltro] = useState<'todos' | 'pagos' | 'pendentes'>('todos');
   const [categoriaFiltroId, setCategoriaFiltroId] = useState<number | 'todas'>('todas');
+  const TAMANHO_PAGINA = 35;
   const [transacoes, setTransacoes] = useState<Transacao[]>([]);
   const [carregando, setCarregando] = useState(false);
+  const [pagina, setPagina] = useState(0);
+  const [temMais, setTemMais] = useState(true);
+  const [carregandoMais, setCarregandoMais] = useState(false);
 
   const carregarTransacoes = useCallback(async () => {
     try {
       setCarregando(true);
+      setPagina(0);
       const lista = await transactionsRepo.listar({
         mesAno: mesSelecionado,
         tipo: tipoFiltro === 'todos' ? undefined : tipoFiltro,
         pago: statusFiltro === 'todos' ? undefined : statusFiltro === 'pagos' ? 1 : 0,
         categoriaId: categoriaFiltroId === 'todas' ? undefined : categoriaFiltroId,
         busca: busca.trim() || undefined,
+        limite: TAMANHO_PAGINA,
+        offset: 0,
       });
       setTransacoes(lista);
+      setTemMais(lista.length === TAMANHO_PAGINA);
     } catch (e) {
       console.error('Erro ao carregar histórico:', e);
     } finally {
       setCarregando(false);
     }
   }, [transactionsRepo, mesSelecionado, tipoFiltro, statusFiltro, categoriaFiltroId, busca]);
+
+  const carregarMaisTransacoes = async () => {
+    if (!temMais || carregandoMais || carregando) return;
+
+    try {
+      setCarregandoMais(true);
+      const proximoOffset = (pagina + 1) * TAMANHO_PAGINA;
+      const novas = await transactionsRepo.listar({
+        mesAno: mesSelecionado,
+        tipo: tipoFiltro === 'todos' ? undefined : tipoFiltro,
+        pago: statusFiltro === 'todos' ? undefined : statusFiltro === 'pagos' ? 1 : 0,
+        categoriaId: categoriaFiltroId === 'todas' ? undefined : categoriaFiltroId,
+        busca: busca.trim() || undefined,
+        limite: TAMANHO_PAGINA,
+        offset: proximoOffset,
+      });
+
+      if (novas.length > 0) {
+        setTransacoes((prev) => [...prev, ...novas]);
+        setPagina((p) => p + 1);
+      }
+      setTemMais(novas.length === TAMANHO_PAGINA);
+    } catch (e) {
+      console.error('Erro ao carregar mais transações:', e);
+    } finally {
+      setCarregandoMais(false);
+    }
+  };
 
   useEffect(() => {
     carregarTransacoes();
@@ -279,12 +316,27 @@ export const HistoryScreen: React.FC = () => {
         keyExtractor={(item) => item.data}
         contentContainerStyle={styles.listaConteudo}
         showsVerticalScrollIndicator={false}
+        onEndReached={carregarMaisTransacoes}
+        onEndReachedThreshold={0.3}
         refreshControl={
           <RefreshControl
             refreshing={carregando}
             onRefresh={carregarTransacoes}
             tintColor={theme.primary}
           />
+        }
+        ListFooterComponent={
+          carregandoMais ? (
+            <View style={{ paddingVertical: 18, alignItems: 'center' }}>
+              <ActivityIndicator size="small" color={theme.primary} />
+            </View>
+          ) : !temMais && transacoes.length >= TAMANHO_PAGINA ? (
+            <View style={{ paddingVertical: 18, alignItems: 'center' }}>
+              <Text style={{ fontSize: 12, color: theme.textMuted }}>
+                Todos os lançamentos do período foram carregados
+              </Text>
+            </View>
+          ) : null
         }
         ListEmptyComponent={
           <View style={[styles.containerVazio, { backgroundColor: theme.card, borderColor: theme.cardBorder }]}>

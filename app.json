@@ -38,6 +38,12 @@
       "expo-router",
       "expo-status-bar"
     ],
+    "updates": {
+      "url": "https://u.expo.dev/a9e352c4-178a-4a91-a48d-b470b6ba401f"
+    },
+    "runtimeVersion": {
+      "policy": "appVersion"
+    },
     "extra": {
       "eas": {
         "projectId": "a9e352c4-178a-4a91-a48d-b470b6ba401f"
