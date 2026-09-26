@@ -7,9 +7,10 @@ import { getNomeMesAno, getMesAnterior, getMesPosterior, getMesAnoAtualIso } fro
 interface MonthSelectorProps {
   mesAno: string;
   onMesChange: (novoMesAno: string) => void;
+  style?: any;
 }
 
-export const MonthSelector: React.FC<MonthSelectorProps> = ({ mesAno, onMesChange }) => {
+export const MonthSelector: React.FC<MonthSelectorProps> = ({ mesAno, onMesChange, style }) => {
   const { theme } = useTheme();
   const mesAtual = getMesAnoAtualIso();
   const isMesAtual = mesAno === mesAtual;
@@ -19,7 +20,7 @@ export const MonthSelector: React.FC<MonthSelectorProps> = ({ mesAno, onMesChang
   const resetarHoje = () => onMesChange(mesAtual);
 
   return (
-    <View style={[styles.container, { backgroundColor: theme.card, borderColor: theme.cardBorder }]}>
+    <View style={[styles.container, { backgroundColor: theme.card, borderColor: theme.cardBorder }, style]}>
       <TouchableOpacity
         onPress={anterior}
         style={[styles.botaoSeta, { backgroundColor: theme.inputBg }]}

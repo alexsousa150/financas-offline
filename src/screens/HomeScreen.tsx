@@ -61,41 +61,55 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
       showsVerticalScrollIndicator={false}
       refreshControl={<RefreshControl refreshing={atualizando} onRefresh={onRefresh} tintColor={theme.primary} />}
     >
-      {/* Cabeçalho com ícones de navegação */}
+      {/* Cabeçalho com seletor de mês e ações rápidas */}
       <View style={styles.cabecalho}>
-        <MonthSelector mesAno={mesSelecionado} onMesChange={setMesSelecionado} />
+        <MonthSelector
+          mesAno={mesSelecionado}
+          onMesChange={setMesSelecionado}
+          style={styles.seletorMes}
+        />
         <View style={styles.iconesCabecalho}>
           <TouchableOpacity
             onPress={onNavegarParaCategorias}
-            style={styles.botaoCabecalho}
+            style={[styles.botaoCabecalho, { backgroundColor: theme.card, borderColor: theme.cardBorder }]}
             hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
             activeOpacity={0.7}
           >
-            <Ionicons name="grid-outline" size={20} color={theme.textSecondary} />
+            <Ionicons name="grid-outline" size={19} color={theme.textSecondary} />
           </TouchableOpacity>
           <TouchableOpacity
             onPress={onNavegarParaAjustes}
-            style={styles.botaoCabecalho}
+            style={[styles.botaoCabecalho, { backgroundColor: theme.card, borderColor: theme.cardBorder }]}
             hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
             activeOpacity={0.7}
           >
-            <Ionicons name="settings-outline" size={20} color={theme.textSecondary} />
+            <Ionicons name="settings-outline" size={19} color={theme.textSecondary} />
           </TouchableOpacity>
         </View>
       </View>
 
-      {/* Hero do Saldo — sem borda, respiro amplo */}
-      <View style={[styles.heroSaldo, { backgroundColor: theme.heroSurface }]}>
+      {/* Hero do Saldo — card refinado com borda e sombra sutil */}
+      <View
+        style={[
+          styles.heroSaldo,
+          {
+            backgroundColor: theme.heroSurface,
+            borderColor: theme.cardBorder,
+          },
+        ]}
+      >
         <View style={styles.linhaLabelSaldo}>
           <Text style={[styles.labelSaldo, { color: theme.textSecondary }]}>Saldo em caixa</Text>
           <TouchableOpacity
             onPress={alternarModoPrivacidade}
+            style={[styles.botaoOlho, { backgroundColor: theme.isDark ? '#20222C' : '#F1F2F6' }]}
             hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+            activeOpacity={0.7}
           >
             <Ionicons
               name={modoPrivacidade ? 'eye-off-outline' : 'eye-outline'}
-              size={18}
-              color={theme.textMuted}
+              size={17}
+              color={theme.textSecondary}
             />
           </TouchableOpacity>
         </View>
@@ -103,36 +117,52 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
         <Text
           style={[
             styles.valorSaldo,
-            { color: resumoMes.saldoRealizado >= 0 ? theme.text : theme.danger },
+            {
+              color: modoPrivacidade
+                ? theme.text
+                : resumoMes.saldoRealizado >= 0
+                ? theme.text
+                : theme.danger,
+            },
           ]}
         >
           {formatarValor(resumoMes.saldoRealizado)}
         </Text>
 
-        {/* Receitas e Despesas em linha, sem card interno */}
+        {/* Receitas e Despesas em cards simétricos */}
         <View style={styles.linhaMetricas}>
-          <View style={styles.colunaMetrica}>
+          <View
+            style={[
+              styles.cardMetrica,
+              {
+                backgroundColor: theme.isDark ? 'rgba(52, 211, 153, 0.08)' : 'rgba(5, 150, 105, 0.05)',
+                borderColor: theme.isDark ? 'rgba(52, 211, 153, 0.2)' : 'rgba(5, 150, 105, 0.15)',
+              },
+            ]}
+          >
             <View style={styles.linhaRotuloMetrica}>
-              <View style={[styles.circuloMetrica, { backgroundColor: theme.successLight }]}>
-                <Ionicons name="arrow-up" size={12} color={theme.success} />
-              </View>
-              <Text style={[styles.labelMetrica, { color: theme.textSecondary }]}>Recebido</Text>
+              <Ionicons name="arrow-up-circle" size={15} color={theme.success} />
+              <Text style={[styles.labelMetrica, { color: theme.success }]}>Recebido</Text>
             </View>
-            <Text style={[styles.valorMetrica, { color: theme.success }]}>
+            <Text style={[styles.valorMetrica, { color: theme.success }]} numberOfLines={1}>
               {formatarValor(resumoMes.receitasRealizadas)}
             </Text>
           </View>
 
-          <View style={[styles.divisorVertical, { backgroundColor: theme.cardBorder }]} />
-
-          <View style={styles.colunaMetrica}>
+          <View
+            style={[
+              styles.cardMetrica,
+              {
+                backgroundColor: theme.isDark ? 'rgba(248, 113, 113, 0.08)' : 'rgba(225, 29, 72, 0.05)',
+                borderColor: theme.isDark ? 'rgba(248, 113, 113, 0.2)' : 'rgba(225, 29, 72, 0.15)',
+              },
+            ]}
+          >
             <View style={styles.linhaRotuloMetrica}>
-              <View style={[styles.circuloMetrica, { backgroundColor: theme.dangerLight }]}>
-                <Ionicons name="arrow-down" size={12} color={theme.danger} />
-              </View>
-              <Text style={[styles.labelMetrica, { color: theme.textSecondary }]}>Pago</Text>
+              <Ionicons name="arrow-down-circle" size={15} color={theme.danger} />
+              <Text style={[styles.labelMetrica, { color: theme.danger }]}>Pago</Text>
             </View>
-            <Text style={[styles.valorMetrica, { color: theme.danger }]}>
+            <Text style={[styles.valorMetrica, { color: theme.danger }]} numberOfLines={1}>
               {formatarValor(resumoMes.despesasRealizadas)}
             </Text>
           </View>
@@ -142,45 +172,68 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
       {/* Orçamentos (Budgets) */}
       {categoriasComOrcamento.length > 0 && (
         <View style={styles.secaoOrcamentos}>
-          <Text style={[styles.tituloSecao, { color: theme.text }]}>Orçamentos do mês</Text>
-          
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.scrollOrcamentos}>
+          <View style={styles.cabecalhoSecaoOrcamentos}>
+            <Text style={[styles.tituloSecao, { color: theme.text }]}>Orçamentos do mês</Text>
+            <Text style={[styles.badgeContagemOrcamento, { color: theme.textSecondary }]}>
+              {categoriasComOrcamento.length} {categoriasComOrcamento.length === 1 ? 'ativo' : 'ativos'}
+            </Text>
+          </View>
+
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.scrollOrcamentos}
+          >
             {categoriasComOrcamento.map((cat) => {
               const estourou = (cat.percentualLimite || 0) >= 100;
               const alerta = (cat.percentualLimite || 0) >= 80 && !estourou;
-              
-              const corBarra = estourou ? theme.danger : (alerta ? theme.warning : cat.cor);
+
+              const corBarra = estourou ? theme.danger : alerta ? theme.warning : cat.cor;
               const percentualLimitado = Math.min(cat.percentualLimite || 0, 100);
 
               return (
-                <View key={cat.categoriaId} style={[styles.cardOrcamento, { backgroundColor: theme.card }]}>
+                <View
+                  key={cat.categoriaId}
+                  style={[
+                    styles.cardOrcamento,
+                    { backgroundColor: theme.card, borderColor: theme.cardBorder },
+                  ]}
+                >
                   <View style={styles.headerOrcamento}>
                     <View style={styles.iconeOrcamentoContainer}>
-                      <Ionicons name={cat.icone as any} size={16} color={cat.cor} />
+                      <View style={[styles.circuloIconeOrcamento, { backgroundColor: cat.cor + '1A' }]}>
+                        <Ionicons name={cat.icone as any} size={15} color={cat.cor} />
+                      </View>
                       <Text style={[styles.nomeOrcamento, { color: theme.text }]} numberOfLines={1}>
                         {cat.nome}
                       </Text>
                     </View>
-                    <Text style={[styles.percentualOrcamento, { color: corBarra }]}>
-                      {Math.round(cat.percentualLimite || 0)}%
-                    </Text>
+                    <View style={[styles.pillPercentual, { backgroundColor: corBarra + '1A' }]}>
+                      <Text style={[styles.percentualOrcamento, { color: corBarra }]}>
+                        {Math.round(cat.percentualLimite || 0)}%
+                      </Text>
+                    </View>
                   </View>
 
-                  <View style={[styles.barraFundo, { backgroundColor: theme.cardBorder }]}>
-                    <View 
+                  <View style={[styles.barraFundo, { backgroundColor: theme.isDark ? '#23242C' : '#EEF0F4' }]}>
+                    <View
                       style={[
-                        styles.barraPreenchimento, 
-                        { width: `${percentualLimitado}%`, backgroundColor: corBarra }
-                      ]} 
+                        styles.barraPreenchimento,
+                        { width: `${percentualLimitado}%`, backgroundColor: corBarra },
+                      ]}
                     />
                   </View>
 
-                  <Text style={[styles.textoRestanteOrcamento, { color: theme.textSecondary }]}>
-                    {estourou 
-                      ? `Excedeu ${formatarValor(Math.abs(cat.restanteLimite || 0))}` 
-                      : `Restam ${formatarValor(cat.restanteLimite || 0)} de ${formatarValor(cat.limiteMensal || 0)}`
-                    }
-                  </Text>
+                  <View style={styles.footerOrcamento}>
+                    <Text style={[styles.textoRestanteOrcamento, { color: estourou ? theme.danger : theme.textSecondary }]} numberOfLines={1}>
+                      {estourou
+                        ? `Excedeu ${formatarValor(Math.abs(cat.restanteLimite || 0))}`
+                        : `Restam ${formatarValor(cat.restanteLimite || 0)}`}
+                    </Text>
+                    <Text style={[styles.textoLimiteTotal, { color: theme.textMuted }]} numberOfLines={1}>
+                      de {formatarValor(cat.limiteMensal || 0)}
+                    </Text>
+                  </View>
                 </View>
               );
             })}
@@ -192,19 +245,19 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
       <View style={styles.secaoRecentes}>
         <View style={styles.cabecalhoSecao}>
           <Text style={[styles.tituloSecao, { color: theme.text }]}>Lançamentos recentes</Text>
-          <TouchableOpacity onPress={onNavegarParaHistorico} activeOpacity={0.7}>
+          <TouchableOpacity onPress={onNavegarParaHistorico} activeOpacity={0.7} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
             <Text style={[styles.linkVerTodos, { color: theme.primary }]}>Ver tudo</Text>
           </TouchableOpacity>
         </View>
 
         {transacoesRecentes.length === 0 ? (
-          <View style={styles.containerVazio}>
-            <Ionicons name="receipt-outline" size={32} color={theme.textMuted} />
+          <View style={[styles.containerVazio, { backgroundColor: theme.card, borderColor: theme.cardBorder }]}>
+            <Ionicons name="receipt-outline" size={36} color={theme.textMuted} />
             <Text style={[styles.tituloVazio, { color: theme.textSecondary }]}>
               Nenhum lançamento neste mês
             </Text>
             <Text style={[styles.subtituloVazio, { color: theme.textMuted }]}>
-              Toque no + para registrar um gasto ou entrada.
+              Toque no botão + abaixo para registrar seus gastos ou entradas.
             </Text>
           </View>
         ) : (
@@ -232,25 +285,36 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   scrollContent: {
-    paddingBottom: 100,
+    paddingBottom: 130,
+    paddingTop: 8,
   },
 
   /* Cabeçalho */
   cabecalho: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingRight: 16,
+    paddingHorizontal: 16,
+    gap: 8,
+    marginBottom: 12,
+  },
+  seletorMes: {
+    flex: 1,
+    marginHorizontal: 0,
+    marginVertical: 0,
+    height: 44,
+    borderRadius: 14,
+    borderWidth: 1,
   },
   iconesCabecalho: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
+    gap: 8,
   },
   botaoCabecalho: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
+    width: 44,
+    height: 44,
+    borderRadius: 14,
+    borderWidth: 1,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -258,120 +322,160 @@ const styles = StyleSheet.create({
   /* Hero do Saldo */
   heroSaldo: {
     marginHorizontal: 16,
-    paddingHorizontal: 20,
-    paddingTop: 22,
-    paddingBottom: 20,
-    borderRadius: 20,
-    marginTop: 4,
+    padding: 20,
+    borderRadius: 24,
+    borderWidth: 1,
+    marginBottom: 20,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.05,
+    shadowRadius: 10,
+    elevation: 3,
   },
   linhaLabelSaldo: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    marginBottom: 2,
+    marginBottom: 4,
   },
   labelSaldo: {
     fontSize: 13,
-    fontWeight: '500',
-    letterSpacing: 0.2,
+    fontWeight: '600',
+    letterSpacing: 0.3,
+  },
+  botaoOlho: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   valorSaldo: {
-    fontSize: 36,
+    fontSize: 34,
     fontWeight: '800',
-    letterSpacing: -1.5,
-    marginBottom: 20,
+    letterSpacing: -1,
+    marginVertical: 10,
   },
 
   /* Métricas inline */
   linhaMetricas: {
     flexDirection: 'row',
     alignItems: 'center',
+    gap: 10,
+    marginTop: 6,
   },
-  colunaMetrica: {
+  cardMetrica: {
     flex: 1,
-  },
-  divisorVertical: {
-    width: 1,
-    height: 32,
-    marginHorizontal: 14,
-    opacity: 0.5,
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    borderRadius: 16,
+    borderWidth: 1,
   },
   linhaRotuloMetrica: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
+    gap: 5,
     marginBottom: 3,
-  },
-  circuloMetrica: {
-    width: 20,
-    height: 20,
-    borderRadius: 10,
-    alignItems: 'center',
-    justifyContent: 'center',
   },
   labelMetrica: {
     fontSize: 12,
-    fontWeight: '500',
+    fontWeight: '700',
   },
   valorMetrica: {
-    fontSize: 16,
-    fontWeight: '700',
-    letterSpacing: -0.3,
+    fontSize: 15,
+    fontWeight: '800',
+    letterSpacing: -0.2,
   },
 
   /* Orçamentos */
   secaoOrcamentos: {
-    marginTop: 24,
+    marginBottom: 24,
+  },
+  cabecalhoSecaoOrcamentos: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 16,
+    marginBottom: 12,
+  },
+  badgeContagemOrcamento: {
+    fontSize: 12,
+    fontWeight: '600',
   },
   scrollOrcamentos: {
     paddingHorizontal: 16,
     gap: 12,
-    paddingBottom: 8,
+    paddingBottom: 4,
   },
   cardOrcamento: {
-    width: 200,
-    padding: 14,
-    borderRadius: 16,
+    width: 250,
+    padding: 16,
+    borderRadius: 20,
+    borderWidth: 1,
   },
   headerOrcamento: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    marginBottom: 12,
+    marginBottom: 10,
   },
   iconeOrcamentoContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
+    gap: 8,
     flex: 1,
+    marginRight: 6,
+  },
+  circuloIconeOrcamento: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   nomeOrcamento: {
     fontSize: 14,
-    fontWeight: '600',
+    fontWeight: '700',
     flex: 1,
   },
+  pillPercentual: {
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 10,
+  },
   percentualOrcamento: {
-    fontSize: 12,
-    fontWeight: '700',
+    fontSize: 11,
+    fontWeight: '800',
   },
   barraFundo: {
-    height: 6,
-    borderRadius: 3,
+    height: 7,
+    borderRadius: 3.5,
     width: '100%',
     overflow: 'hidden',
-    marginBottom: 8,
+    marginBottom: 10,
   },
   barraPreenchimento: {
     height: '100%',
-    borderRadius: 3,
+    borderRadius: 3.5,
+  },
+  footerOrcamento: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 4,
   },
   textoRestanteOrcamento: {
     fontSize: 12,
+    fontWeight: '700',
+    flex: 1,
+  },
+  textoLimiteTotal: {
+    fontSize: 11,
+    fontWeight: '500',
   },
 
   /* Seção Recentes */
   secaoRecentes: {
-    marginTop: 24,
     paddingHorizontal: 16,
   },
   cabecalhoSecao: {
@@ -381,27 +485,31 @@ const styles = StyleSheet.create({
     marginBottom: 14,
   },
   tituloSecao: {
-    fontSize: 15,
+    fontSize: 16,
     fontWeight: '700',
+    letterSpacing: -0.2,
   },
   linkVerTodos: {
     fontSize: 13,
-    fontWeight: '600',
+    fontWeight: '700',
   },
   containerVazio: {
-    paddingVertical: 40,
+    padding: 32,
+    borderRadius: 20,
+    borderWidth: 1,
     alignItems: 'center',
     justifyContent: 'center',
     gap: 8,
+    marginTop: 4,
   },
   tituloVazio: {
-    fontSize: 14,
-    fontWeight: '600',
+    fontSize: 15,
+    fontWeight: '700',
     marginTop: 4,
   },
   subtituloVazio: {
-    fontSize: 12,
+    fontSize: 13,
     textAlign: 'center',
-    lineHeight: 18,
+    lineHeight: 19,
   },
 });

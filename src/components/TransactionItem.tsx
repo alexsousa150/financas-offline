@@ -3,6 +3,7 @@ import { View, Text, TouchableOpacity, StyleSheet, Alert } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { Transacao } from '../types';
 import { useTheme } from '../context/ThemeContext';
+import { useApp } from '../context/AppContext';
 import { formatarMoeda, formatarDataBr } from '../utils/formatters';
 
 interface TransactionItemProps {
@@ -21,6 +22,7 @@ export const TransactionItem: React.FC<TransactionItemProps> = ({
   onAlternarPago,
 }) => {
   const { theme } = useTheme();
+  const { formatarValor } = useApp();
   const isDespesa = transacao.tipo === 'despesa';
   const corValor = isDespesa ? theme.danger : theme.success;
   const sinal = isDespesa ? '-' : '+';
@@ -65,117 +67,90 @@ export const TransactionItem: React.FC<TransactionItemProps> = ({
     }
   };
 
+  const abrirAcoesRapidas = () => {
+    Alert.alert(
+      transacao.descricao || transacao.categoria_nome || 'Lançamento',
+      `${sinal} ${formatarMoeda(transacao.valor)} • ${transacao.categoria_nome || ''}`,
+      [
+        { text: 'Cancelar', style: 'cancel' },
+        { text: 'Duplicar', onPress: () => onDuplicar && onDuplicar(transacao) },
+        { text: 'Excluir', style: 'destructive', onPress: confirmarExclusao },
+      ]
+    );
+  };
+
+  const tituloPrincipal = transacao.descricao || transacao.categoria_nome || 'Sem descrição';
+  const subtitulo = transacao.descricao ? transacao.categoria_nome : null;
+
   return (
     <TouchableOpacity
       activeOpacity={0.7}
       onPress={() => onEditar && onEditar(transacao)}
+      onLongPress={abrirAcoesRapidas}
       style={[
         styles.container,
         {
           backgroundColor: theme.card,
-          borderColor: isPendente ? theme.warning : theme.cardBorder,
-          opacity: isPendente ? 0.92 : 1,
+          borderColor: isPendente ? (theme.isDark ? 'rgba(251, 191, 36, 0.4)' : '#FDE68A') : theme.cardBorder,
         },
       ]}
     >
       <View style={styles.esquerda}>
-        <View style={[styles.iconeContainer, { backgroundColor: corCategoria + '22' }]}>
+        <View style={[styles.iconeContainer, { backgroundColor: corCategoria + '1C' }]}>
           <Ionicons name={iconeCategoria} size={20} color={corCategoria} />
         </View>
 
         <View style={styles.detalhes}>
-          <View style={styles.linhaTitulo}>
-            <Text style={[styles.categoria, { color: theme.text }]} numberOfLines={1}>
-              {transacao.categoria_nome || 'Sem categoria'}
+          <Text style={[styles.titulo, { color: theme.text }]} numberOfLines={1}>
+            {tituloPrincipal}
+          </Text>
+
+          <View style={styles.linhaSubtitulo}>
+            {subtitulo && (
+              <Text style={[styles.subtitulo, { color: theme.textSecondary }]} numberOfLines={1}>
+                {subtitulo} •{' '}
+              </Text>
+            )}
+            <Text style={[styles.data, { color: theme.textMuted }]}>
+              {formatarDataBr(transacao.data)}
             </Text>
 
-            {/* Badge de Parcelamento */}
             {isParcelado && (
               <View style={[styles.badgeParcela, { backgroundColor: theme.primaryLight }]}>
-                <Ionicons name="card-outline" size={11} color={theme.primary} />
+                <Ionicons name="card-outline" size={10} color={theme.primary} />
                 <Text style={[styles.textoBadgeParcela, { color: theme.primary }]}>
                   {transacao.parcela_atual}/{transacao.total_parcelas}
                 </Text>
               </View>
             )}
-
-            {/* Badge de Pendente / Pago */}
-            {isPendente ? (
-              <TouchableOpacity
-                onPress={() => onAlternarPago && onAlternarPago(transacao)}
-                style={[styles.badgePendente, { backgroundColor: theme.warningLight, borderColor: theme.warning }]}
-              >
-                <Ionicons name="time-outline" size={11} color={theme.warning} />
-                <Text style={[styles.textoBadge, { color: theme.warning, fontWeight: '700' }]}>Pendente</Text>
-              </TouchableOpacity>
-            ) : (
-              <View style={[styles.badgePago, { backgroundColor: theme.successLight }]}>
-                <Ionicons name="checkmark-sharp" size={11} color={theme.success} />
-                <Text style={[styles.textoBadge, { color: theme.success }]}>Pago</Text>
-              </View>
-            )}
-
-            {transacao.conciliado === 1 && (
-              <View style={[styles.badgeConciliado, { backgroundColor: theme.successLight }]}>
-                <Ionicons name="checkmark-done" size={11} color={theme.success} />
-                <Text style={[styles.textoBadge, { color: theme.success }]}>Conciliado</Text>
-              </View>
-            )}
           </View>
-
-          {Boolean(transacao.descricao) && (
-            <Text style={[styles.descricao, { color: theme.textSecondary }]} numberOfLines={1}>
-              {transacao.descricao}
-            </Text>
-          )}
-
-          <Text style={[styles.data, { color: isPendente ? theme.warning : theme.textMuted }]}>
-            {isPendente ? '⏰ Vence em: ' : ''}{formatarDataBr(transacao.data)}
-          </Text>
         </View>
       </View>
 
       <View style={styles.direita}>
         <Text style={[styles.valor, { color: isPendente ? theme.warning : corValor }]}>
-          {sinal} {formatarMoeda(transacao.valor)}
+          {sinal} {formatarValor(transacao.valor)}
         </Text>
 
-        <View style={styles.acoes}>
-          {onAlternarPago && (
-            <TouchableOpacity
-              onPress={() => onAlternarPago(transacao)}
-              style={[
-                styles.botaoAcao,
-                { backgroundColor: isPendente ? theme.warningLight : theme.inputBg },
-              ]}
-              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-            >
-              <Ionicons
-                name={isPendente ? 'time' : 'checkmark-circle'}
-                size={15}
-                color={isPendente ? theme.warning : theme.success}
-              />
-            </TouchableOpacity>
-          )}
-          {onDuplicar && (
-            <TouchableOpacity
-              onPress={() => onDuplicar(transacao)}
-              style={[styles.botaoAcao, { backgroundColor: theme.inputBg }]}
-              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-            >
-              <Ionicons name="copy-outline" size={14} color={theme.textSecondary} />
-            </TouchableOpacity>
-          )}
-          {onExcluir && (
-            <TouchableOpacity
-              onPress={confirmarExclusao}
-              style={[styles.botaoAcao, { backgroundColor: theme.inputBg }]}
-              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-            >
-              <Ionicons name="trash-outline" size={14} color={theme.danger} />
-            </TouchableOpacity>
-          )}
-        </View>
+        {isPendente ? (
+          <TouchableOpacity
+            onPress={() => onAlternarPago && onAlternarPago(transacao)}
+            style={[styles.badgePendente, { backgroundColor: theme.warningLight, borderColor: theme.warning }]}
+            hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
+          >
+            <Ionicons name="time-outline" size={11} color={theme.warning} />
+            <Text style={[styles.textoBadge, { color: theme.warning, fontWeight: '700' }]}>Pendente</Text>
+          </TouchableOpacity>
+        ) : (
+          <TouchableOpacity
+            onPress={() => onAlternarPago && onAlternarPago(transacao)}
+            style={[styles.badgePago, { backgroundColor: theme.successLight }]}
+            hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
+          >
+            <Ionicons name="checkmark-sharp" size={11} color={theme.success} />
+            <Text style={[styles.textoBadge, { color: theme.success }]}>Pago</Text>
+          </TouchableOpacity>
+        )}
       </View>
     </TouchableOpacity>
   );
@@ -207,25 +182,36 @@ const styles = StyleSheet.create({
   },
   detalhes: {
     flex: 1,
+    justifyContent: 'center',
   },
-  linhaTitulo: {
+  titulo: {
+    fontSize: 15,
+    fontWeight: '700',
+    letterSpacing: -0.2,
+    marginBottom: 4,
+  },
+  linhaSubtitulo: {
     flexDirection: 'row',
     alignItems: 'center',
     flexWrap: 'wrap',
-    gap: 6,
-    marginBottom: 2,
+    gap: 4,
   },
-  categoria: {
-    fontSize: 14,
-    fontWeight: '700',
+  subtitulo: {
+    fontSize: 12,
+    fontWeight: '500',
+  },
+  data: {
+    fontSize: 12,
+    fontWeight: '500',
   },
   badgeParcela: {
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: 6,
-    paddingVertical: 2,
+    paddingVertical: 1,
     borderRadius: 6,
-    gap: 3,
+    gap: 2,
+    marginLeft: 4,
   },
   textoBadgeParcela: {
     fontSize: 10,
@@ -234,57 +220,33 @@ const styles = StyleSheet.create({
   badgePendente: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    borderRadius: 6,
+    paddingHorizontal: 7,
+    paddingVertical: 3,
+    borderRadius: 8,
     borderWidth: 1,
     gap: 3,
   },
   badgePago: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    borderRadius: 6,
-    gap: 3,
-  },
-  badgeConciliado: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    borderRadius: 6,
+    paddingHorizontal: 7,
+    paddingVertical: 3,
+    borderRadius: 8,
     gap: 3,
   },
   textoBadge: {
     fontSize: 10,
-    fontWeight: '600',
-  },
-  descricao: {
-    fontSize: 12,
-    marginBottom: 2,
-  },
-  data: {
-    fontSize: 11,
-    fontWeight: '600',
+    fontWeight: '700',
   },
   direita: {
     alignItems: 'flex-end',
+    justifyContent: 'center',
+    marginLeft: 8,
   },
   valor: {
-    fontSize: 14,
+    fontSize: 15,
     fontWeight: '800',
+    letterSpacing: -0.3,
     marginBottom: 6,
-  },
-  acoes: {
-    flexDirection: 'row',
-    gap: 6,
-  },
-  botaoAcao: {
-    width: 28,
-    height: 28,
-    borderRadius: 14,
-    alignItems: 'center',
-    justifyContent: 'center',
   },
 });

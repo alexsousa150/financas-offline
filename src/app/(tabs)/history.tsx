@@ -1,5 +1,6 @@
 import React from 'react';
 import { View } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '../../context/ThemeContext';
 import { useApp } from '../../context/AppContext';
 import { HistoryScreen as OriginalHistoryScreen } from '../../screens/HistoryScreen';
@@ -8,9 +9,10 @@ import { FloatingActionButton } from '../../components/FloatingActionButton';
 export default function HistoryRoute() {
   const { abrirModalNovoLancamento } = useApp();
   const { theme } = useTheme();
+  const insets = useSafeAreaInsets();
 
   return (
-    <View style={{ flex: 1, backgroundColor: theme.background }}>
+    <View style={{ flex: 1, backgroundColor: theme.background, paddingTop: insets.top }}>
       <OriginalHistoryScreen />
       <FloatingActionButton onPress={abrirModalNovoLancamento} rotulo="Novo" />
     </View>
