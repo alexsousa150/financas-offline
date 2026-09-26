@@ -6,6 +6,7 @@ import { BackupRepository, StatusBackupInfo } from '../database/backupRepo';
 import { SettingsRepository } from '../database/settingsRepo';
 import { RecurringRepository } from '../database/recurringRepo';
 import { FavoritesRepository } from '../database/favoritesRepo';
+import { LearningRepository } from '../database/learningRepo';
 import { ReconciliationService } from '../services/reconciliationService';
 import { PdfReportService } from '../services/pdfReportService';
 import {
@@ -29,6 +30,7 @@ interface AppContextType {
   settingsRepo: SettingsRepository;
   recurringRepo: RecurringRepository;
   favoritesRepo: FavoritesRepository;
+  learningRepo: LearningRepository;
   reconciliationService: ReconciliationService;
 
   // Estado do Mês
@@ -104,7 +106,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [settingsRepo] = useState(() => new SettingsRepository(db));
   const [recurringRepo] = useState(() => new RecurringRepository(db));
   const [favoritesRepo] = useState(() => new FavoritesRepository(db));
-  const [reconciliationService] = useState(() => new ReconciliationService(transactionsRepo));
+  const [learningRepo] = useState(() => new LearningRepository(db));
+  const [reconciliationService] = useState(() => new ReconciliationService(transactionsRepo, learningRepo));
 
   const [mesSelecionado, setMesSelecionado] = useState<string>(getMesAnoAtualIso());
   const [categorias, setCategorias] = useState<Categoria[]>([]);
@@ -367,6 +370,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         settingsRepo,
         recurringRepo,
         favoritesRepo,
+        learningRepo,
         reconciliationService,
         mesSelecionado,
         setMesSelecionado: (m) => {

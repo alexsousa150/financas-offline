@@ -24,6 +24,7 @@ export const ImportScreen: React.FC = () => {
     categorias,
     reconciliationService,
     transactionsRepo,
+    learningRepo,
     notificarMudancaDados,
   } = useApp();
 
@@ -132,6 +133,13 @@ export const ImportScreen: React.FC = () => {
       }));
 
       const totalInseridos = await transactionsRepo.inserirEmLote(transacoesParaInserir);
+
+      // Ensina o algoritmo com base nas escolhas do usuário
+      for (const item of selecionados) {
+        if (item.descricao && item.categoria_id_sugerida) {
+          await learningRepo.aprenderRegra(item.descricao, item.categoria_id_sugerida);
+        }
+      }
 
       await notificarMudancaDados();
 

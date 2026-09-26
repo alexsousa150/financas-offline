@@ -1,15 +1,19 @@
 import { TransactionsRepository } from '../database/transactionsRepo';
+import { LearningRepository } from '../database/learningRepo';
 import { Categoria, TransacaoExtratoPendente } from '../types';
 import { ItemExtratoBruto } from './statementParser';
 import { sugerirCategoriaPorDescricao } from '../utils/autoCategories';
 
 export class ReconciliationService {
-  constructor(private transactionsRepo: TransactionsRepository) {}
+  constructor(
+    private transactionsRepo: TransactionsRepository,
+    private learningRepo: LearningRepository
+  ) {}
 
   /**
    * Processa os itens brutos do extrato contra o banco SQLite existente:
-   * 1. Verifica se já existe um lançamento com o mesmo valor (+/- R$0.05) e data próxima (+/- 3 dias)
-   * 2. Sugere automaticamente a categoria com base no texto do estabelecimento/descrição
+   * 1. Verifica se já existe um lançamento correspondente
+   * 2. Usa o Learning Engine (regras salvas) ou Sugestões estáticas para adivinhar a categoria
    * 3. Retorna a lista de itens pronta para revisão do usuário
    */
   async processarExtrato(
@@ -51,12 +55,13 @@ export class ReconciliationService {
         return diffDias <= diasTolerancia;
       });
 
-      // Sugere categoria por inteligência de palavras-chave
-      const categoriaSugeridaId = sugerirCategoriaPorDescricao(
-        item.descricao,
-        categorias,
-        item.tipo
-      );
+      // 1. Tenta achar categoria pelo Learning Engine (o que o usuário já escolheu antes)
+      let categoriaSugeridaId = await this.learningRepo.buscarRegra(item.descricao);
+
+      // 2. Se não encontrou regra aprendida, faz fallback pro arquivo estático de palavras-chave
+      if (!categoriaSugeridaId) {
+        categoriaSugeridaId = sugerirCategoriaPorDescricao(item.descricao, categorias, item.tipo);
+      }
 
       const jaConciliado = !!correspondente;
 

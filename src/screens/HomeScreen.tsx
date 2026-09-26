@@ -31,6 +31,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
     mesSelecionado,
     setMesSelecionado,
     resumoMes,
+    rankingGastos,
     transacoesRecentes,
     carregarDadosPainel,
     abrirModalEditarLancamento,
@@ -50,6 +51,8 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
     await carregarDadosPainel();
     setAtualizando(false);
   };
+
+  const categoriasComOrcamento = rankingGastos.filter(c => c.limiteMensal && c.limiteMensal > 0);
 
   return (
     <ScrollView
@@ -135,6 +138,55 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
           </View>
         </View>
       </View>
+
+      {/* Orçamentos (Budgets) */}
+      {categoriasComOrcamento.length > 0 && (
+        <View style={styles.secaoOrcamentos}>
+          <Text style={[styles.tituloSecao, { color: theme.text }]}>Orçamentos do mês</Text>
+          
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.scrollOrcamentos}>
+            {categoriasComOrcamento.map((cat) => {
+              const estourou = (cat.percentualLimite || 0) >= 100;
+              const alerta = (cat.percentualLimite || 0) >= 80 && !estourou;
+              
+              const corBarra = estourou ? theme.danger : (alerta ? theme.warning : cat.cor);
+              const percentualLimitado = Math.min(cat.percentualLimite || 0, 100);
+
+              return (
+                <View key={cat.categoriaId} style={[styles.cardOrcamento, { backgroundColor: theme.card }]}>
+                  <View style={styles.headerOrcamento}>
+                    <View style={styles.iconeOrcamentoContainer}>
+                      <Ionicons name={cat.icone as any} size={16} color={cat.cor} />
+                      <Text style={[styles.nomeOrcamento, { color: theme.text }]} numberOfLines={1}>
+                        {cat.nome}
+                      </Text>
+                    </View>
+                    <Text style={[styles.percentualOrcamento, { color: corBarra }]}>
+                      {Math.round(cat.percentualLimite || 0)}%
+                    </Text>
+                  </View>
+
+                  <View style={[styles.barraFundo, { backgroundColor: theme.cardBorder }]}>
+                    <View 
+                      style={[
+                        styles.barraPreenchimento, 
+                        { width: `${percentualLimitado}%`, backgroundColor: corBarra }
+                      ]} 
+                    />
+                  </View>
+
+                  <Text style={[styles.textoRestanteOrcamento, { color: theme.textSecondary }]}>
+                    {estourou 
+                      ? `Excedeu ${formatarValor(Math.abs(cat.restanteLimite || 0))}` 
+                      : `Restam ${formatarValor(cat.restanteLimite || 0)} de ${formatarValor(cat.limiteMensal || 0)}`
+                    }
+                  </Text>
+                </View>
+              );
+            })}
+          </ScrollView>
+        </View>
+      )}
 
       {/* Lançamentos Recentes */}
       <View style={styles.secaoRecentes}>
@@ -265,6 +317,56 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '700',
     letterSpacing: -0.3,
+  },
+
+  /* Orçamentos */
+  secaoOrcamentos: {
+    marginTop: 24,
+  },
+  scrollOrcamentos: {
+    paddingHorizontal: 16,
+    gap: 12,
+    paddingBottom: 8,
+  },
+  cardOrcamento: {
+    width: 200,
+    padding: 14,
+    borderRadius: 16,
+  },
+  headerOrcamento: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 12,
+  },
+  iconeOrcamentoContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    flex: 1,
+  },
+  nomeOrcamento: {
+    fontSize: 14,
+    fontWeight: '600',
+    flex: 1,
+  },
+  percentualOrcamento: {
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  barraFundo: {
+    height: 6,
+    borderRadius: 3,
+    width: '100%',
+    overflow: 'hidden',
+    marginBottom: 8,
+  },
+  barraPreenchimento: {
+    height: '100%',
+    borderRadius: 3,
+  },
+  textoRestanteOrcamento: {
+    fontSize: 12,
   },
 
   /* Seção Recentes */

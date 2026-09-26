@@ -85,6 +85,13 @@ export async function inicializarBanco(db: SQLiteDatabase): Promise<void> {
       categoria_id INTEGER NOT NULL REFERENCES categorias(id),
       icone TEXT
     );
+
+    CREATE TABLE IF NOT EXISTS regras_categorizacao (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      palavra_chave TEXT NOT NULL UNIQUE,
+      categoria_id INTEGER NOT NULL REFERENCES categorias(id),
+      frequencia INTEGER DEFAULT 1
+    );
   `);
 
   // 1. Migrações seguras de colunas em 'categorias' para bancos já existentes
