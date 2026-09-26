@@ -5,6 +5,24 @@ O formato é baseado no [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.
 
 ---
 
+## [1.5.0] - 2026-09-26
+
+### Centralização e gestão de contas fixas
+- **Configuração de contas e rendas fixas em Configurações**: Gerenciamento centralizado na aba de configurações com resumo em tempo real da quantidade de contas ativas e valor mensal estimado.
+- **Vencimento customizado e contas ilimitadas**: Inclusão de seletor rápido de dias de vencimento (1 a 31), valor customizado com máscara monetária e possibilidade de adicionar quantas contas fixas desejar (aluguel, internet, condomínio, salário).
+- **Edição e alternância de status**: Edição completa de lançamentos recorrentes existentes e botão de ativar/desativar conta sem precisar excluí-la.
+
+### Persistência de aparência e tela inicial minimalista
+- **Persistência garantida do tema**: Armazenamento do modo de tema (escuro, claro ou sistema) na tabela local `configuracoes` do SQLite, com feedback visual de confirmação na tela de ajustes.
+- **Tela inicial limpa e direta**: Exibição focada exclusivamente no saldo em caixa de hoje, receitas recebidas, despesas pagas e lançamentos recentes. Banners de importação e alertas secundários foram removidos do início.
+- **Extrato bancário dedicado**: O fluxo de importação e conciliação de extratos OFX/CSV fica reservado à aba Extrato.
+
+### Humanização da interface e redação
+- **Linguagem natural e acolhedora**: Aplicação das diretrizes dos skills `humanizer` e `frontend-design`, removendo jargões técnicos, títulos sensacionalistas, slogans genéricos e emojis decorativos em cabeçalhos.
+- **Títulos e ações em sentence case**: Padronização de botões, modais e etiquetas em português brasileiro direto.
+
+---
+
 ## [1.4.0] - 2026-09-26
 
 ### 🛡️ Correção Crítica de Inicialização & Migração SQLite

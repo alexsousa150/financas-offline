@@ -1,6 +1,6 @@
 {
   "name": "alex-sousa",
-  "version": "1.4.0",
+  "version": "1.5.0",
   "main": "index.ts",
   "dependencies": {
     "@expo/vector-icons": "^15.0.2",
@@ -29,7 +29,8 @@
     "web": "expo start --web",
     "release:patch": "node scripts/release.js patch",
     "release:minor": "node scripts/release.js minor",
-    "release:major": "node scripts/release.js major"
+    "release:major": "node scripts/release.js major",
+    "lint": "expo lint"
   },
   "private": true
 }

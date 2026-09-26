@@ -136,8 +136,8 @@ export const ImportScreen: React.FC = () => {
       await notificarMudancaDados();
 
       Alert.alert(
-        'Importação Concluída com Sucesso! 🎉',
-        `${totalInseridos} lançamentos foram adicionados às suas finanças e já estão organizados por categoria.`,
+        'Importação concluída',
+        `${totalInseridos} lançamento${totalInseridos === 1 ? '' : 's'} importado${totalInseridos === 1 ? '' : 's'} com sucesso.`,
         [
           {
             text: 'OK',
@@ -170,10 +170,10 @@ export const ImportScreen: React.FC = () => {
             </View>
 
             <Text style={[styles.tituloUpload, { color: theme.text }]}>
-              Importar Extrato Bancário
+              Importar extrato bancário
             </Text>
             <Text style={[styles.subtituloUpload, { color: theme.textSecondary }]}>
-              Carregue o extrato exportado pelo seu banco (OFX ou CSV) para conciliar lançamentos e completar o que estiver faltando.
+              Carregue o extrato exportado pelo seu banco (OFX ou CSV) para conciliar seus lançamentos e identificar transações pendentes.
             </Text>
 
             <TouchableOpacity
@@ -187,7 +187,7 @@ export const ImportScreen: React.FC = () => {
               ) : (
                 <>
                   <Ionicons name="folder-open-outline" size={20} color="#FFFFFF" style={{ marginRight: 8 }} />
-                  <Text style={styles.textoBotaoEscolher}>Selecionar Arquivo no Aparelho</Text>
+                  <Text style={styles.textoBotaoEscolher}>Selecionar arquivo</Text>
                 </>
               )}
             </TouchableOpacity>
@@ -204,26 +204,26 @@ export const ImportScreen: React.FC = () => {
 
           {/* Dicas e Funcionalidades de Inteligência */}
           <View style={[styles.cardDicas, { backgroundColor: theme.card, borderColor: theme.cardBorder }]}>
-            <Text style={[styles.tituloDicas, { color: theme.text }]}>Como funciona a conciliação?</Text>
+            <Text style={[styles.tituloDicas, { color: theme.text }]}>Como o extrato é processado</Text>
 
             <View style={styles.itemDica}>
               <Ionicons name="shield-checkmark" size={18} color={theme.primary} style={{ marginTop: 2 }} />
               <Text style={[styles.textoDica, { color: theme.textSecondary }]}>
-                <Text style={{ fontWeight: '700', color: theme.text }}>100% Offline:</Text> O arquivo é lido e processado apenas na memória do seu celular. Nenhum dado sai do aparelho.
+                O arquivo é lido localmente na memória do telefone. Nenhum dado sai do seu aparelho.
               </Text>
             </View>
 
             <View style={styles.itemDica}>
               <Ionicons name="sparkles" size={18} color={theme.warning} style={{ marginTop: 2 }} />
               <Text style={[styles.textoDica, { color: theme.textSecondary }]}>
-                <Text style={{ fontWeight: '700', color: theme.text }}>Sugestão de Categorias:</Text> O app detecta automaticamente se é Uber, iFood, mercado ou contas e já pré-categoriza.
+                Identificação de estabelecimentos para sugerir a categoria automaticamente.
               </Text>
             </View>
 
             <View style={styles.itemDica}>
               <Ionicons name="git-compare" size={18} color={theme.success} style={{ marginTop: 2 }} />
               <Text style={[styles.textoDica, { color: theme.textSecondary }]}>
-                <Text style={{ fontWeight: '700', color: theme.text }}>Detecção de Duplicados:</Text> Lançamentos que já batem com os que você cadastrou manualmente são identificados para evitar duplicidade.
+                Identificação de lançamentos já cadastrados para evitar duplicidades.
               </Text>
             </View>
           </View>
@@ -404,7 +404,7 @@ export const ImportScreen: React.FC = () => {
               ) : (
                 <>
                   <Ionicons name="checkmark-done-circle" size={22} color="#FFFFFF" style={{ marginRight: 6 }} />
-                  <Text style={styles.textoConfirmar}>Confirmar Importação</Text>
+                  <Text style={styles.textoConfirmar}>Confirmar importação</Text>
                 </>
               )}
             </TouchableOpacity>
@@ -416,7 +416,7 @@ export const ImportScreen: React.FC = () => {
       {categoriaModalItem && (
         <View style={styles.modalOverlay}>
           <View style={[styles.modalConteudo, { backgroundColor: theme.card, borderColor: theme.cardBorder }]}>
-            <Text style={[styles.tituloModalCat, { color: theme.text }]}>Alterar Categoria</Text>
+            <Text style={[styles.tituloModalCat, { color: theme.text }]}>Alterar categoria</Text>
             <Text style={[styles.subtituloModalCat, { color: theme.textSecondary }]} numberOfLines={1}>
               {categoriaModalItem.descricao}
             </Text>

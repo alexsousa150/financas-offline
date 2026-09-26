@@ -64,6 +64,44 @@ export class RecurringRepository {
     await this.db.runAsync('UPDATE lancamentos_recorrentes SET ativo = ? WHERE id = ?;', ativo ? 1 : 0, id);
   }
 
+  async atualizar(id: number, dados: Partial<Omit<LancamentoRecorrente, 'id'>>): Promise<void> {
+    const campos: string[] = [];
+    const params: any[] = [];
+
+    if (dados.valor !== undefined) {
+      campos.push('valor = ?');
+      params.push(dados.valor);
+    }
+    if (dados.tipo !== undefined) {
+      campos.push('tipo = ?');
+      params.push(dados.tipo);
+    }
+    if (dados.categoria_id !== undefined) {
+      campos.push('categoria_id = ?');
+      params.push(dados.categoria_id);
+    }
+    if (dados.descricao !== undefined) {
+      campos.push('descricao = ?');
+      params.push(dados.descricao);
+    }
+    if (dados.dia_vencimento !== undefined) {
+      campos.push('dia_vencimento = ?');
+      params.push(dados.dia_vencimento);
+    }
+    if (dados.ativo !== undefined) {
+      campos.push('ativo = ?');
+      params.push(dados.ativo);
+    }
+
+    if (campos.length === 0) return;
+
+    params.push(id);
+    await this.db.runAsync(
+      `UPDATE lancamentos_recorrentes SET ${campos.join(', ')} WHERE id = ?;`,
+      ...params
+    );
+  }
+
   /**
    * Processa os lançamentos fixos para o mês especificado (ex: '2026-09').
    * Se ainda não foram gerados neste mês, insere automaticamente na tabela de transações!

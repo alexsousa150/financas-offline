@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   View,
   Text,
@@ -19,6 +19,7 @@ import { BackupData } from '../types';
 import { NotificationService } from '../services/notificationService';
 import { AppHaptics } from '../utils/haptics';
 import { APP_VERSION, APP_BUILD } from '../utils/version';
+import { formatarMoeda } from '../utils/formatters';
 
 export const SettingsScreen: React.FC = () => {
   const { theme, modo, setModo } = useTheme();
@@ -26,6 +27,7 @@ export const SettingsScreen: React.FC = () => {
     backupRepo,
     settingsRepo,
     transactionsRepo,
+    recurringRepo,
     notificarMudancaDados,
     biometriaHabilitada,
     setBiometriaHabilitada,
@@ -36,32 +38,49 @@ export const SettingsScreen: React.FC = () => {
   const [exportandoCsv, setExportandoCsv] = useState(false);
   const [restaurando, setRestaurando] = useState(false);
   const [lembretesAtivos, setLembretesAtivos] = useState(true);
+  const [contasFixasQtd, setContasFixasQtd] = useState(0);
+  const [totalFixasMensal, setTotalFixasMensal] = useState(0);
+  const [feedbackTemaSalvo, setFeedbackTemaSalvo] = useState(false);
+
+  const carregarResumoContasFixas = useCallback(async () => {
+    try {
+      const lista = await recurringRepo.listar();
+      const ativas = lista.filter((i) => i.ativo === 1);
+      setContasFixasQtd(ativas.length);
+      const totalDespesas = ativas
+        .filter((i) => i.tipo === 'despesa')
+        .reduce((acc, i) => acc + i.valor, 0);
+      setTotalFixasMensal(totalDespesas);
+    } catch (e) {
+      console.error('Erro ao carregar resumo de contas fixas:', e);
+    }
+  }, [recurringRepo]);
 
   useEffect(() => {
     (async () => {
       const lemb = await settingsRepo.obterBooleano('lembretes_habilitados', true);
       setLembretesAtivos(lemb);
+      await carregarResumoContasFixas();
     })();
-  }, [settingsRepo]);
+  }, [settingsRepo, carregarResumoContasFixas]);
 
   const handleAlternarBiometria = async (novoValor: boolean) => {
     AppHaptics.toqueLeve();
     if (novoValor) {
-      // Confirma autenticação antes de ativar
       const hasHardware = await LocalAuthentication.hasHardwareAsync();
       const isEnrolled = await LocalAuthentication.isEnrolledAsync();
 
       if (!hasHardware || !isEnrolled) {
         Alert.alert(
-          'Biometria Indisponível',
-          'Seu dispositivo não possui biometria cadastrada. Cadastre uma impressão digital ou reconhecimento facial nas configurações do Android.'
+          'Biometria indisponível',
+          'Cadastre uma digital ou reconhecimento facial nas configurações do Android para usar este recurso.'
         );
         return;
       }
 
       const res = await LocalAuthentication.authenticateAsync({
-        promptMessage: 'Confirme sua digital para ativar o bloqueio',
-        fallbackLabel: 'Usar Senha',
+        promptMessage: 'Confirme sua biometria para ativar o bloqueio',
+        fallbackLabel: 'Usar senha',
       });
 
       if (res.success) {
@@ -81,14 +100,23 @@ export const SettingsScreen: React.FC = () => {
       const permitido = await NotificationService.solicitarPermissao();
       if (!permitido) {
         Alert.alert(
-          'Permissão Necessária',
-          'Ative a permissão de notificações para receber alertas no dia de vencimento das contas.'
+          'Permissão necessária',
+          'Ative as notificações para receber avisos na data de vencimento das contas.'
         );
         return;
       }
     }
     setLembretesAtivos(novoValor);
     await settingsRepo.definirBooleano('lembretes_habilitados', novoValor);
+  };
+
+  const handleSelecionarTema = async (novoModo: 'escuro' | 'claro' | 'sistema') => {
+    AppHaptics.toqueSelecao();
+    await setModo(novoModo);
+    setFeedbackTemaSalvo(true);
+    setTimeout(() => {
+      setFeedbackTemaSalvo(false);
+    }, 2500);
   };
 
   const handleExportar = async () => {
@@ -98,7 +126,7 @@ export const SettingsScreen: React.FC = () => {
       await backupRepo.exportarBackup();
       AppHaptics.toqueSucesso();
     } catch (e: any) {
-      Alert.alert('Erro no Backup', 'Não foi possível exportar os dados. ' + (e.message || ''));
+      Alert.alert('Falha no backup', 'Não foi possível exportar os dados. ' + (e.message || ''));
     } finally {
       setExportando(false);
     }
@@ -111,7 +139,7 @@ export const SettingsScreen: React.FC = () => {
       await backupRepo.exportarPlanilhaCsv();
       AppHaptics.toqueSucesso();
     } catch (e: any) {
-      Alert.alert('Erro ao Exportar', 'Não foi possível gerar a planilha CSV.');
+      Alert.alert('Erro ao exportar', 'Não foi possível gerar a planilha.');
     } finally {
       setExportandoCsv(false);
     }
@@ -119,19 +147,19 @@ export const SettingsScreen: React.FC = () => {
 
   const handleLimparHistorico = () => {
     Alert.alert(
-      'Limpar Histórico de Lançamentos?',
-      'Esta ação apagará todas as despesas e receitas cadastradas (útil para limpar dados de teste). Suas categorias e contas fixas serão preservadas.',
+      'Limpar histórico de lançamentos?',
+      'Esta ação apagará as receitas e despesas registradas. Suas categorias e contas fixas serão mantidas.',
       [
         { text: 'Cancelar', style: 'cancel' },
         {
-          text: 'Sim, Limpar Lançamentos',
+          text: 'Apagar lançamentos',
           style: 'destructive',
           onPress: async () => {
             try {
               await transactionsRepo.limparHistorico();
               await notificarMudancaDados();
               AppHaptics.toqueSucesso();
-              Alert.alert('Sucesso', 'Histórico de lançamentos limpo com sucesso.');
+              Alert.alert('Histórico limpo', 'Os lançamentos foram removidos com sucesso.');
             } catch (e) {
               Alert.alert('Erro', 'Não foi possível limpar os lançamentos.');
             }
@@ -143,12 +171,12 @@ export const SettingsScreen: React.FC = () => {
 
   const handleRestaurar = async () => {
     Alert.alert(
-      'Atenção ao Restaurar',
-      'Ao restaurar um arquivo de backup, todos os dados atuais serão substituídos pelos dados do arquivo. Deseja continuar?',
+      'Atenção ao restaurar',
+      'Ao restaurar um arquivo de backup, os dados atuais serão substituídos pelos do arquivo. Deseja continuar?',
       [
         { text: 'Cancelar', style: 'cancel' },
         {
-          text: 'Escolher Arquivo de Backup',
+          text: 'Selecionar arquivo',
           onPress: async () => {
             try {
               setRestaurando(true);
@@ -169,14 +197,15 @@ export const SettingsScreen: React.FC = () => {
               const dados: BackupData = JSON.parse(conteudo);
               const stats = await backupRepo.restaurarBackup(dados);
               await notificarMudancaDados();
+              await carregarResumoContasFixas();
               AppHaptics.toqueSucesso();
 
               Alert.alert(
-                'Backup Restaurado!',
-                `${stats.categoriasRestauradas} categorias e ${stats.transacoesRestauradas} lançamentos foram recuperados com sucesso.`
+                'Backup restaurado',
+                `${stats.categoriasRestauradas} categorias e ${stats.transacoesRestauradas} lançamentos foram recuperados.`
               );
             } catch (e: any) {
-              Alert.alert('Erro ao Restaurar', 'O arquivo selecionado não é um backup válido.');
+              Alert.alert('Erro ao restaurar', 'O arquivo selecionado não é um backup válido.');
             } finally {
               setRestaurando(false);
             }
@@ -195,50 +224,37 @@ export const SettingsScreen: React.FC = () => {
       <View style={styles.topoContainer}>
         <Text style={[styles.tituloPagina, { color: theme.text }]}>Configurações</Text>
         <Text style={[styles.subtituloPagina, { color: theme.textSecondary }]}>
-          Segurança, automações e preferências
+          Preferências, segurança e armazenamento local
         </Text>
       </View>
 
-      {/* Seção Segurança & Biometria */}
+      {/* Seção Contas Fixas e Lembretes */}
       <View style={[styles.card, { backgroundColor: theme.card, borderColor: theme.cardBorder }]}>
-        <Text style={[styles.tituloSecao, { color: theme.text }]}>Segurança</Text>
-
-        <View style={styles.linhaInterruptor}>
-          <View style={{ flex: 1, paddingRight: 10 }}>
-            <Text style={[styles.tituloItemConfig, { color: theme.text }]}>
-              Bloqueio por Biometria / Digital
-            </Text>
-            <Text style={[styles.descItemConfig, { color: theme.textSecondary }]}>
-              Exige impressão digital ou reconhecimento facial ao abrir o aplicativo
-            </Text>
-          </View>
-          <Switch
-            value={biometriaHabilitada}
-            onValueChange={handleAlternarBiometria}
-            thumbColor={biometriaHabilitada ? theme.primary : '#A1A1AA'}
-            trackColor={{ false: '#71717A', true: theme.primaryLight }}
-          />
-        </View>
-      </View>
-
-      {/* Seção Automações & Lembretes */}
-      <View style={[styles.card, { backgroundColor: theme.card, borderColor: theme.cardBorder }]}>
-        <Text style={[styles.tituloSecao, { color: theme.text }]}>Automações & Lembretes</Text>
+        <Text style={[styles.tituloSecao, { color: theme.text }]}>Contas e rendas fixas</Text>
+        <Text style={[styles.descricaoSecao, { color: theme.textSecondary }]}>
+          Cadastre contas a pagar e rendas que se repetem todo mês. Você pode definir o dia de vencimento, o valor e cadastrar quantas contas precisar.
+        </Text>
 
         <TouchableOpacity
           activeOpacity={0.8}
           style={[styles.itemLink, { backgroundColor: theme.inputBg, borderColor: theme.inputBorder }]}
-          onPress={abrirModalRecorrentes}
+          onPress={async () => {
+            abrirModalRecorrentes();
+            // Ao fechar, podemos atualizar o resumo
+            setTimeout(carregarResumoContasFixas, 1000);
+          }}
         >
           <View style={[styles.circuloIconeItem, { backgroundColor: theme.warningLight }]}>
             <Ionicons name="repeat-outline" size={20} color={theme.warning} />
           </View>
           <View style={{ flex: 1 }}>
             <Text style={[styles.tituloItemConfig, { color: theme.text }]}>
-              Contas & Rendas Fixas Mensais
+              Gerenciar contas fixas
             </Text>
             <Text style={[styles.descItemConfig, { color: theme.textSecondary }]}>
-              Salário, aluguel, internet (criados sozinhos todo mês)
+              {contasFixasQtd > 0
+                ? `${contasFixasQtd} conta${contasFixasQtd === 1 ? '' : 's'} ativa${contasFixasQtd === 1 ? '' : 's'} • ${formatarMoeda(totalFixasMensal)}/mês`
+                : 'Cadastrar nova conta com vencimento e valor'}
             </Text>
           </View>
           <Ionicons name="chevron-forward" size={18} color={theme.textMuted} />
@@ -247,10 +263,10 @@ export const SettingsScreen: React.FC = () => {
         <View style={[styles.linhaInterruptor, { marginTop: 14 }]}>
           <View style={{ flex: 1, paddingRight: 10 }}>
             <Text style={[styles.tituloItemConfig, { color: theme.text }]}>
-              Lembretes de Vencimento
+              Lembretes de vencimento
             </Text>
             <Text style={[styles.descItemConfig, { color: theme.textSecondary }]}>
-              Notificação local no aparelho às 09:00 no dia do vencimento da conta
+              Notificação no aparelho às 09:00 no dia de vencimento das contas cadastradas
             </Text>
           </View>
           <Switch
@@ -262,76 +278,22 @@ export const SettingsScreen: React.FC = () => {
         </View>
       </View>
 
-      {/* Seção Backup e Dados Locais */}
-      <View style={[styles.card, { backgroundColor: theme.card, borderColor: theme.cardBorder }]}>
-        <Text style={[styles.tituloSecao, { color: theme.text }]}>Backup & Dados Locais</Text>
-        <Text style={[styles.descricaoSecao, { color: theme.textSecondary }]}>
-          Como o aplicativo não usa nuvem por privacidade, salve backups periódicos para não perder seus dados ao trocar de aparelho.
-        </Text>
-
-        <TouchableOpacity
-          style={[styles.botaoAcao, { backgroundColor: theme.primary }]}
-          onPress={handleExportar}
-          disabled={exportando}
-        >
-          {exportando ? (
-            <ActivityIndicator color="#FFFFFF" />
-          ) : (
-            <>
-              <Ionicons name="download-outline" size={20} color="#FFFFFF" style={{ marginRight: 8 }} />
-              <Text style={styles.textoBotaoAcao}>Gerar e Salvar Arquivo de Backup</Text>
-            </>
-          )}
-        </TouchableOpacity>
-
-        <TouchableOpacity
-          style={[styles.botaoAcaoSecundario, { backgroundColor: theme.inputBg, borderColor: theme.inputBorder }]}
-          onPress={handleRestaurar}
-          disabled={restaurando}
-        >
-          {restaurando ? (
-            <ActivityIndicator color={theme.text} />
-          ) : (
-            <>
-              <Ionicons name="refresh-outline" size={20} color={theme.text} style={{ marginRight: 8 }} />
-              <Text style={[styles.textoBotaoAcaoSecundario, { color: theme.text }]}>
-                Restaurar Backup do Aparelho
-              </Text>
-            </>
-          )}
-        </TouchableOpacity>
-
-        <TouchableOpacity
-          style={[styles.botaoAcaoSecundario, { backgroundColor: theme.inputBg, borderColor: theme.inputBorder, marginTop: 10 }]}
-          onPress={handleExportarCsv}
-          disabled={exportandoCsv}
-        >
-          {exportandoCsv ? (
-            <ActivityIndicator color={theme.text} />
-          ) : (
-            <>
-              <Ionicons name="document-text-outline" size={20} color={theme.primary} style={{ marginRight: 8 }} />
-              <Text style={[styles.textoBotaoAcaoSecundario, { color: theme.text }]}>
-                Exportar Planilha Excel / CSV
-              </Text>
-            </>
-          )}
-        </TouchableOpacity>
-
-        <TouchableOpacity
-          style={[styles.botaoAcaoSecundario, { backgroundColor: theme.dangerLight, borderColor: theme.danger, marginTop: 10 }]}
-          onPress={handleLimparHistorico}
-        >
-          <Ionicons name="trash-outline" size={18} color={theme.danger} style={{ marginRight: 8 }} />
-          <Text style={[styles.textoBotaoAcaoSecundario, { color: theme.danger }]}>
-            Limpar Lançamentos de Teste
-          </Text>
-        </TouchableOpacity>
-      </View>
-
       {/* Seção Aparência */}
       <View style={[styles.card, { backgroundColor: theme.card, borderColor: theme.cardBorder }]}>
-        <Text style={[styles.tituloSecao, { color: theme.text }]}>Aparência</Text>
+        <View style={styles.linhaCabecalhoSecao}>
+          <Text style={[styles.tituloSecao, { color: theme.text, marginBottom: 0 }]}>Aparência</Text>
+          {feedbackTemaSalvo ? (
+            <View style={[styles.badgeSalvo, { backgroundColor: theme.successLight }]}>
+              <Ionicons name="checkmark-circle" size={13} color={theme.success} />
+              <Text style={[styles.textoBadgeSalvo, { color: theme.success }]}>Salvo</Text>
+            </View>
+          ) : (
+            <Text style={[styles.textoStatusTema, { color: theme.textMuted }]}>Salvo neste aparelho</Text>
+          )}
+        </View>
+        <Text style={[styles.descricaoSecao, { color: theme.textSecondary, marginTop: 4, marginBottom: 12 }]}>
+          Escolha o tema visual do aplicativo. Sua preferência fica gravada no banco local e se mantém ao reiniciar.
+        </Text>
 
         <View style={styles.linhaOpcoesTema}>
           <TouchableOpacity
@@ -342,10 +304,7 @@ export const SettingsScreen: React.FC = () => {
                 borderColor: modo === 'escuro' ? theme.primary : theme.inputBorder,
               },
             ]}
-            onPress={() => {
-              AppHaptics.toqueSelecao();
-              setModo('escuro');
-            }}
+            onPress={() => handleSelecionarTema('escuro')}
           >
             <Ionicons
               name="moon"
@@ -370,10 +329,7 @@ export const SettingsScreen: React.FC = () => {
                 borderColor: modo === 'claro' ? theme.primary : theme.inputBorder,
               },
             ]}
-            onPress={() => {
-              AppHaptics.toqueSelecao();
-              setModo('claro');
-            }}
+            onPress={() => handleSelecionarTema('claro')}
           >
             <Ionicons
               name="sunny"
@@ -398,10 +354,7 @@ export const SettingsScreen: React.FC = () => {
                 borderColor: modo === 'sistema' ? theme.primary : theme.inputBorder,
               },
             ]}
-            onPress={() => {
-              AppHaptics.toqueSelecao();
-              setModo('sistema');
-            }}
+            onPress={() => handleSelecionarTema('sistema')}
           >
             <Ionicons
               name="phone-portrait-outline"
@@ -420,16 +373,105 @@ export const SettingsScreen: React.FC = () => {
         </View>
       </View>
 
-      {/* Selo de Garantia e Privacidade */}
+      {/* Seção Segurança */}
+      <View style={[styles.card, { backgroundColor: theme.card, borderColor: theme.cardBorder }]}>
+        <Text style={[styles.tituloSecao, { color: theme.text }]}>Segurança</Text>
+
+        <View style={styles.linhaInterruptor}>
+          <View style={{ flex: 1, paddingRight: 10 }}>
+            <Text style={[styles.tituloItemConfig, { color: theme.text }]}>
+              Bloqueio por biometria
+            </Text>
+            <Text style={[styles.descItemConfig, { color: theme.textSecondary }]}>
+              Solicita impressão digital ou reconhecimento facial ao abrir o aplicativo
+            </Text>
+          </View>
+          <Switch
+            value={biometriaHabilitada}
+            onValueChange={handleAlternarBiometria}
+            thumbColor={biometriaHabilitada ? theme.primary : '#A1A1AA'}
+            trackColor={{ false: '#71717A', true: theme.primaryLight }}
+          />
+        </View>
+      </View>
+
+      {/* Seção Backup e Dados Locais */}
+      <View style={[styles.card, { backgroundColor: theme.card, borderColor: theme.cardBorder }]}>
+        <Text style={[styles.tituloSecao, { color: theme.text }]}>Backup e dados locais</Text>
+        <Text style={[styles.descricaoSecao, { color: theme.textSecondary }]}>
+          Seus dados ficam gravados exclusivamente neste celular. Exporte um arquivo de backup periodicamente para guardar uma cópia segura ou migrar para outro aparelho.
+        </Text>
+
+        <TouchableOpacity
+          style={[styles.botaoAcao, { backgroundColor: theme.primary }]}
+          onPress={handleExportar}
+          disabled={exportando}
+        >
+          {exportando ? (
+            <ActivityIndicator color="#FFFFFF" />
+          ) : (
+            <>
+              <Ionicons name="download-outline" size={20} color="#FFFFFF" style={{ marginRight: 8 }} />
+              <Text style={styles.textoBotaoAcao}>Exportar backup dos dados</Text>
+            </>
+          )}
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          style={[styles.botaoAcaoSecundario, { backgroundColor: theme.inputBg, borderColor: theme.inputBorder }]}
+          onPress={handleRestaurar}
+          disabled={restaurando}
+        >
+          {restaurando ? (
+            <ActivityIndicator color={theme.text} />
+          ) : (
+            <>
+              <Ionicons name="refresh-outline" size={20} color={theme.text} style={{ marginRight: 8 }} />
+              <Text style={[styles.textoBotaoAcaoSecundario, { color: theme.text }]}>
+                Restaurar a partir de um backup
+              </Text>
+            </>
+          )}
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          style={[styles.botaoAcaoSecundario, { backgroundColor: theme.inputBg, borderColor: theme.inputBorder, marginTop: 10 }]}
+          onPress={handleExportarCsv}
+          disabled={exportandoCsv}
+        >
+          {exportandoCsv ? (
+            <ActivityIndicator color={theme.text} />
+          ) : (
+            <>
+              <Ionicons name="document-text-outline" size={20} color={theme.primary} style={{ marginRight: 8 }} />
+              <Text style={[styles.textoBotaoAcaoSecundario, { color: theme.text }]}>
+                Exportar planilha (CSV)
+              </Text>
+            </>
+          )}
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          style={[styles.botaoAcaoSecundario, { backgroundColor: theme.dangerLight, borderColor: theme.danger, marginTop: 10 }]}
+          onPress={handleLimparHistorico}
+        >
+          <Ionicons name="trash-outline" size={18} color={theme.danger} style={{ marginRight: 8 }} />
+          <Text style={[styles.textoBotaoAcaoSecundario, { color: theme.danger }]}>
+            Apagar histórico de lançamentos
+          </Text>
+        </TouchableOpacity>
+      </View>
+
+      {/* Armazenamento local e privacidade */}
       <View style={[styles.cardPrivacidade, { backgroundColor: theme.card, borderColor: theme.cardBorder }]}>
         <View style={styles.linhaSelo}>
           <View style={[styles.circuloSelo, { backgroundColor: theme.successLight }]}>
-            <Ionicons name="shield-checkmark" size={26} color={theme.success} />
+            <Ionicons name="shield-checkmark" size={24} color={theme.success} />
           </View>
           <View style={{ flex: 1 }}>
-            <Text style={[styles.tituloPrivacidade, { color: theme.text }]}>Privacidade Absoluta</Text>
+            <Text style={[styles.tituloPrivacidade, { color: theme.text }]}>Armazenamento local e privacidade</Text>
             <Text style={[styles.subtituloPrivacidade, { color: theme.textSecondary }]}>
-              Seu dinheiro é assunto 100% privado.
+              Seus registros financeiros ficam apenas neste aparelho.
             </Text>
           </View>
         </View>
@@ -439,21 +481,21 @@ export const SettingsScreen: React.FC = () => {
         <View style={styles.itemPrivacidade}>
           <Ionicons name="wifi-outline" size={18} color={theme.success} />
           <Text style={[styles.textoItemPrivacidade, { color: theme.textSecondary }]}>
-            <Text style={{ fontWeight: '700', color: theme.text }}>Sem permissão de internet:</Text> O aplicativo não possui código de rede ou servidores.
+            Sem conexão externa. O aplicativo não envia dados para servidores na internet.
           </Text>
         </View>
 
         <View style={styles.itemPrivacidade}>
           <Ionicons name="hardware-chip-outline" size={18} color={theme.primary} />
           <Text style={[styles.textoItemPrivacidade, { color: theme.textSecondary }]}>
-            <Text style={{ fontWeight: '700', color: theme.text }}>Banco Local SQLite:</Text> Todas as transações são gravadas diretamente no seu smartphone.
+            Banco de dados SQLite gravado na memória interna do próprio celular.
           </Text>
         </View>
 
         <View style={styles.itemPrivacidade}>
           <Ionicons name="finger-print" size={18} color={theme.warning} />
           <Text style={[styles.textoItemPrivacidade, { color: theme.textSecondary }]}>
-            <Text style={{ fontWeight: '700', color: theme.text }}>Proteção Biométrica:</Text> Digital e reconhecimento facial nativos do Android.
+            Acesso opcional com proteção biométrica nativa do sistema operacional.
           </Text>
         </View>
       </View>
@@ -490,15 +532,37 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     marginBottom: 16,
   },
+  linhaCabecalhoSecao: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 4,
+  },
+  badgeSalvo: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 8,
+  },
+  textoBadgeSalvo: {
+    fontSize: 11,
+    fontWeight: '700',
+  },
+  textoStatusTema: {
+    fontSize: 11,
+    fontWeight: '500',
+  },
   tituloSecao: {
     fontSize: 16,
     fontWeight: '800',
-    marginBottom: 12,
+    marginBottom: 8,
   },
   descricaoSecao: {
     fontSize: 13,
     lineHeight: 19,
-    marginBottom: 16,
+    marginBottom: 14,
   },
   linhaInterruptor: {
     flexDirection: 'row',
@@ -583,14 +647,14 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   circuloSelo: {
-    width: 46,
-    height: 46,
-    borderRadius: 23,
+    width: 44,
+    height: 44,
+    borderRadius: 22,
     alignItems: 'center',
     justifyContent: 'center',
   },
   tituloPrivacidade: {
-    fontSize: 16,
+    fontSize: 15,
     fontWeight: '800',
   },
   subtituloPrivacidade: {

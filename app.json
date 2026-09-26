@@ -2,7 +2,7 @@
   "expo": {
     "name": "Finanças Offline",
     "slug": "alex-sousa",
-    "version": "1.4.0",
+    "version": "1.5.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "automatic",
@@ -11,7 +11,7 @@
     },
     "android": {
       "package": "com.financas.offline",
-      "versionCode": 4,
+      "versionCode": 5,
       "blockedPermissions": [
         "android.permission.INTERNET"
       ],

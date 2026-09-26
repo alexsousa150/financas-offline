@@ -69,7 +69,7 @@ export const CategoriesScreen: React.FC = () => {
       {/* Botão de Adicionar Categoria no Topo */}
       <View style={styles.topoContainer}>
         <View>
-          <Text style={[styles.tituloPagina, { color: theme.text }]}>Departamentos</Text>
+          <Text style={[styles.tituloPagina, { color: theme.text }]}>Categorias</Text>
           <Text style={[styles.subtituloPagina, { color: theme.textSecondary }]}>
             {categorias.length} categorias cadastradas
           </Text>

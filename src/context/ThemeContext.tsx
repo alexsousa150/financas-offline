@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { useColorScheme } from 'react-native';
+import { useSQLiteContext } from 'expo-sqlite';
 
 export interface ThemeColors {
   background: string;
@@ -82,26 +83,62 @@ const lightTheme: ThemeColors = {
 interface ThemeContextType {
   theme: ThemeColors;
   modo: 'escuro' | 'claro' | 'sistema';
-  setModo: (modo: 'escuro' | 'claro' | 'sistema') => void;
+  setModo: (modo: 'escuro' | 'claro' | 'sistema') => Promise<void>;
   alternarTema: () => void;
 }
 
 const ThemeContext = createContext<ThemeContextType>({
   theme: darkTheme,
   modo: 'escuro',
-  setModo: () => {},
+  setModo: async () => {},
   alternarTema: () => {},
 });
 
 export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const scheme = useColorScheme();
-  const [modo, setModo] = useState<'escuro' | 'claro' | 'sistema'>('escuro');
+  const db = useSQLiteContext();
+  const [modo, setModoState] = useState<'escuro' | 'claro' | 'sistema'>('escuro');
+
+  useEffect(() => {
+    let ativo = true;
+    (async () => {
+      try {
+        const row = await db.getFirstAsync<{ valor: string }>(
+          'SELECT valor FROM configuracoes WHERE chave = ?;',
+          'tema_modo'
+        );
+        if (ativo && row && (row.valor === 'escuro' || row.valor === 'claro' || row.valor === 'sistema')) {
+          setModoState(row.valor as any);
+        }
+      } catch (e) {
+        // Silencioso se der erro na inicialização
+      }
+    })();
+    return () => {
+      ativo = false;
+    };
+  }, [db]);
+
+  const setModo = async (novoModo: 'escuro' | 'claro' | 'sistema') => {
+    setModoState(novoModo);
+    try {
+      await db.runAsync(
+        `INSERT INTO configuracoes (chave, valor) VALUES (?, ?)
+         ON CONFLICT(chave) DO UPDATE SET valor = excluded.valor;`,
+        'tema_modo',
+        novoModo
+      );
+    } catch (e) {
+      console.warn('Erro ao salvar tema no banco:', e);
+    }
+  };
 
   const isDark = modo === 'sistema' ? scheme === 'dark' : modo === 'escuro';
   const theme = isDark ? darkTheme : lightTheme;
 
   const alternarTema = () => {
-    setModo((prev) => (prev === 'escuro' ? 'claro' : 'escuro'));
+    const proximo = modo === 'escuro' ? 'claro' : 'escuro';
+    setModo(proximo);
   };
 
   return (

@@ -188,7 +188,7 @@ export const AnalyticsScreen: React.FC = () => {
           </View>
 
           <Text style={[styles.dicaFinanceira, { color: theme.textSecondary, marginTop: 12 }]}>
-            📈 <Text style={{ fontWeight: '700' }}>Evolução de Longo Prazo:</Text> Você movimentou suas finanças em {resumoAno.mesesComDados} mês(es) de {anoSelecionado}.
+            Você registrou movimentações em {resumoAno.mesesComDados} mês(es) de {anoSelecionado}.
           </Text>
         </View>
       )}
@@ -202,7 +202,7 @@ export const AnalyticsScreen: React.FC = () => {
       <View style={[styles.cardResumo, { backgroundColor: theme.card, borderColor: theme.cardBorder }]}>
         <View style={styles.linhaResumoCabecalho}>
           <Text style={[styles.tituloResumo, { color: theme.textSecondary }]}>
-            Balanço do Período
+            Balanço do período
           </Text>
           <View
             style={[
@@ -252,7 +252,7 @@ export const AnalyticsScreen: React.FC = () => {
         </View>
       </View>
 
-      {/* Diagnóstico 50/30/20 (Essencial vs Estilo de Vida) */}
+      {/* Diagnóstico Essencial vs Estilo de Vida */}
       {analiseEssencial && (analiseEssencial.totalEssencial > 0 || analiseEssencial.totalEstiloDeVida > 0) && (
         <View style={[styles.cardDiagnosticoEssencial, { backgroundColor: theme.card, borderColor: theme.cardBorder }]}>
           <View style={styles.cabecalhoDiagnostico}>
@@ -260,9 +260,9 @@ export const AnalyticsScreen: React.FC = () => {
               <Ionicons name="pie-chart" size={20} color={theme.primary} />
             </View>
             <View style={{ flex: 1 }}>
-              <Text style={[styles.tituloSecao, { color: theme.text }]}>Diagnóstico: Essencial vs Estilo de Vida</Text>
+              <Text style={[styles.tituloSecao, { color: theme.text }]}>Essencial e estilo de vida</Text>
               <Text style={[styles.subtituloDiagnostico, { color: theme.textSecondary }]}>
-                Regra 50/30/20 de Saúde Financeira
+                Divisão dos seus gastos no mês
               </Text>
             </View>
           </View>
@@ -301,7 +301,7 @@ export const AnalyticsScreen: React.FC = () => {
             <View style={styles.colunaEssencial}>
               <View style={styles.linhaIndicadorCor}>
                 <View style={[styles.bolinhaCor, { backgroundColor: theme.success }]} />
-                <Text style={[styles.labelClassificacao, { color: theme.text }]}>Essencial (Sobrevivência)</Text>
+                <Text style={[styles.labelClassificacao, { color: theme.text }]}>Essencial</Text>
               </View>
               <Text style={[styles.valorClassificacao, { color: theme.success }]}>
                 {formatarMoeda(analiseEssencial.totalEssencial)} ({analiseEssencial.percentualEssencial.toFixed(0)}%)
@@ -311,7 +311,7 @@ export const AnalyticsScreen: React.FC = () => {
             <View style={styles.colunaEssencial}>
               <View style={styles.linhaIndicadorCor}>
                 <View style={[styles.bolinhaCor, { backgroundColor: theme.warning }]} />
-                <Text style={[styles.labelClassificacao, { color: theme.text }]}>Estilo de Vida (Lazer)</Text>
+                <Text style={[styles.labelClassificacao, { color: theme.text }]}>Estilo de vida</Text>
               </View>
               <Text style={[styles.valorClassificacao, { color: theme.warning }]}>
                 {formatarMoeda(analiseEssencial.totalEstiloDeVida)} ({analiseEssencial.percentualEstiloDeVida.toFixed(0)}%)
@@ -320,7 +320,7 @@ export const AnalyticsScreen: React.FC = () => {
           </View>
 
           <Text style={[styles.dicaFinanceira, { color: theme.textSecondary }]}>
-            💡 <Text style={{ fontWeight: '700' }}>Dica do Analista:</Text> O ideal é manter os gastos essenciais abaixo de 50-60% da sua renda, reservando o restante para qualidade de vida e poupança.
+            Manter despesas essenciais em até 50% ou 60% da renda ajuda a reservar margem para imprevistos e planos futuros.
           </Text>
         </View>
       )}
@@ -333,9 +333,9 @@ export const AnalyticsScreen: React.FC = () => {
               <Ionicons name="trending-up" size={20} color={theme.warning} />
             </View>
             <View style={{ flex: 1 }}>
-              <Text style={[styles.tituloSecao, { color: theme.text }]}>Renda Futura Comprometida</Text>
+              <Text style={[styles.tituloSecao, { color: theme.text }]}>Comprometimento futuro</Text>
               <Text style={[styles.subtituloDiagnostico, { color: theme.textSecondary }]}>
-                Parcelas e contas fixas agendadas para os próximos 6 meses
+                Parcelas e contas fixas previstas para os próximos 6 meses
               </Text>
             </View>
           </View>
@@ -366,31 +366,31 @@ export const AnalyticsScreen: React.FC = () => {
         </View>
       )}
 
-      {/* Diagnóstico de Sangria Financeira */}
+      {/* Maior Categoria de Despesa */}
       {maiorSangria && maiorSangria.total > 0 && (
         <View
           style={[
             styles.cardSangriaDestaque,
-            { backgroundColor: theme.card, borderColor: theme.danger },
+            { backgroundColor: theme.card, borderColor: theme.cardBorder },
           ]}
         >
           <View style={styles.cabecalhoSangriaDestaque}>
             <View style={[styles.iconeFogo, { backgroundColor: theme.dangerLight }]}>
-              <Ionicons name="flame" size={22} color={theme.danger} />
+              <Ionicons name="pie-chart-outline" size={20} color={theme.danger} />
             </View>
             <View style={{ flex: 1 }}>
-              <Text style={[styles.tagAlerta, { color: theme.danger }]}>
-                Onde você está mais gastando
+              <Text style={[styles.tagAlerta, { color: theme.textSecondary }]}>
+                Maior categoria do mês
               </Text>
               <Text style={[styles.tituloMaiorGasto, { color: theme.text }]}>
-                {maiorSangria.nome} é o seu maior dreno financeiro
+                {maiorSangria.nome} concentra o maior volume de gastos
               </Text>
             </View>
           </View>
 
           <View style={styles.dadosSangria}>
             <Text style={[styles.textoExplicativo, { color: theme.textSecondary }]}>
-              Representa <Text style={{ fontWeight: '800', color: theme.text }}>{maiorSangria.percentual.toFixed(1)}%</Text> de todas as suas saídas do mês, somando{' '}
+              Representa <Text style={{ fontWeight: '800', color: theme.text }}>{maiorSangria.percentual.toFixed(1)}%</Text> das suas despesas do mês, somando{' '}
               <Text style={{ fontWeight: '800', color: theme.danger }}>{formatarMoeda(maiorSangria.total)}</Text>.
             </Text>
 
@@ -421,7 +421,7 @@ export const AnalyticsScreen: React.FC = () => {
       {rankingGastos.length > 0 && (
         <View style={[styles.cardGrafico, { backgroundColor: theme.card, borderColor: theme.cardBorder }]}>
           <Text style={[styles.tituloSecao, { color: theme.text }]}>
-            Distribuição dos Gastos por Categoria
+            Distribuição dos gastos por categoria
           </Text>
 
           <DonutChart
@@ -449,7 +449,7 @@ export const AnalyticsScreen: React.FC = () => {
       {/* Ranking Detalhado com Barras de Progresso e Comparação */}
       <View style={styles.secaoRanking}>
         <Text style={[styles.tituloSecao, { color: theme.text, marginBottom: 12 }]}>
-          Ranking de Gastos no Mês
+          Ranking de gastos no mês
         </Text>
 
         {rankingGastos.length === 0 ? (
