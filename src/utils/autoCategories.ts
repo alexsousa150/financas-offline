@@ -1,4 +1,4 @@
-import { Categoria } from '../types';
+import type { Categoria } from '../types/index.ts';
 
 interface RegraSugestao {
   nomeCategoria: string;

@@ -254,6 +254,10 @@ export class PdfReportService {
               <span style="color: #6B7280; font-size: 11px;">Estilo de vida e lazer:</span>
               <strong style="color: #D97706; font-size: 13px; margin-left: 6px;">${formatarMoeda(analiseEssencial.totalEstiloDeVida)} (${analiseEssencial.percentualEstiloDeVida.toFixed(0)}%)</strong>
             </div>
+            <div>
+              <span style="color: #6B7280; font-size: 11px;">Poupança e reservas:</span>
+              <strong style="color: #2563EB; font-size: 13px; margin-left: 6px;">${formatarMoeda(analiseEssencial.totalPoupanca || 0)} (${(analiseEssencial.percentualPoupanca || 0).toFixed(0)}%)</strong>
+            </div>
           </div>
         ` : ''}
 

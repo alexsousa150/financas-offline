@@ -3,16 +3,21 @@
     "name": "Finanças Offline",
     "slug": "alex-sousa",
     "scheme": "financasoffline",
-    "version": "1.6.0",
+    "version": "1.6.1",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "automatic",
+    "splash": {
+      "image": "./assets/splash-icon.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#121214"
+    },
     "ios": {
       "supportsTablet": true
     },
     "android": {
       "package": "com.financas.offline",
-      "versionCode": 6,
+      "versionCode": 7,
       "predictiveBackGestureEnabled": false,
       "adaptiveIcon": {
         "backgroundColor": "#121214",
@@ -38,6 +43,12 @@
       "expo-router",
       "expo-status-bar"
     ],
+    "updates": {
+      "url": "https://u.expo.dev/a9e352c4-178a-4a91-a48d-b470b6ba401f"
+    },
+    "runtimeVersion": {
+      "policy": "appVersion"
+    },
     "extra": {
       "eas": {
         "projectId": "a9e352c4-178a-4a91-a48d-b470b6ba401f"

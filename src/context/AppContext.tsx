@@ -1,4 +1,5 @@
-import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
+import { AppState, AppStateStatus } from 'react-native';
 import { useSQLiteContext } from 'expo-sqlite';
 import { CategoriesRepository } from '../database/categoriesRepo';
 import { TransactionsRepository } from '../database/transactionsRepo';
@@ -21,6 +22,7 @@ import {
 } from '../types';
 import { getMesAnoAtualIso, formatarMoeda, getDataHojeIso } from '../utils/formatters';
 import { AppHaptics } from '../utils/haptics';
+import { useModals } from './ModalContext';
 
 interface AppContextType {
   // Repositórios
@@ -63,6 +65,7 @@ interface AppContextType {
   // Modo Privacidade
   modoPrivacidade: boolean;
   alternarModoPrivacidade: () => void;
+  definirModoPrivacidade: (priv: boolean) => Promise<void>;
   formatarValor: (valor: number) => string;
 
   // Biometria
@@ -141,16 +144,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [biometriaHabilitada, setBiometriaHabilitadaState] = useState(false);
   const [autenticado, setAutenticado] = useState(true);
 
-  // Estados dos modais globais
-  const [modalTransacaoAberto, setModalTransacaoAberto] = useState(false);
-  const [modalTransacaoTipoInicial, setModalTransacaoTipoInicial] = useState<TipoTransacao>('despesa');
-  const [transacaoParaEdicao, setTransacaoParaEdicao] = useState<Transacao | null>(null);
-  const [transacaoParaDuplicacao, setTransacaoParaDuplicacao] = useState<Transacao | null>(null);
-
-  const [modalCategoriaAberto, setModalCategoriaAberto] = useState(false);
-  const [categoriaParaEdicao, setCategoriaParaEdicao] = useState<Categoria | null>(null);
-
-  const [modalRecorrentesAberto, setModalRecorrentesAberto] = useState(false);
+  // Delegação do estado dos modais globais para o ModalContext isolado
+  const modais = useModals();
 
   // Carrega configurações iniciais (Privacidade e Biometria)
   useEffect(() => {
@@ -166,11 +161,44 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     })();
   }, [settingsRepo]);
 
+  // Re-bloqueio biométrico ao voltar do background (Ciclo de vida do App)
+  const backgroundTimestampRef = useRef<number | null>(null);
+  const biometriaHabilitadaRef = useRef(biometriaHabilitada);
+  useEffect(() => {
+    biometriaHabilitadaRef.current = biometriaHabilitada;
+  }, [biometriaHabilitada]);
+
+  useEffect(() => {
+    const subscription = AppState.addEventListener('change', (nextAppState: AppStateStatus) => {
+      if (nextAppState === 'background' || nextAppState === 'inactive') {
+        backgroundTimestampRef.current = Date.now();
+      } else if (nextAppState === 'active') {
+        if (backgroundTimestampRef.current && biometriaHabilitadaRef.current) {
+          const tempoForaMs = Date.now() - backgroundTimestampRef.current;
+          // Se ficou fora por mais de 1 segundo, força re-autenticação biométrica
+          if (tempoForaMs > 1000) {
+            setAutenticado(false);
+          }
+        }
+        backgroundTimestampRef.current = null;
+      }
+    });
+
+    return () => {
+      subscription.remove();
+    };
+  }, []);
+
   const alternarModoPrivacidade = async () => {
     AppHaptics.toqueSelecao();
     const novoValor = !modoPrivacidade;
     setModoPrivacidade(novoValor);
     await settingsRepo.definirBooleano('modo_privacidade', novoValor);
+  };
+
+  const definirModoPrivacidade = async (habilitar: boolean) => {
+    setModoPrivacidade(habilitar);
+    await settingsRepo.definirBooleano('modo_privacidade', habilitar);
   };
 
   const setBiometriaHabilitada = async (habilitar: boolean) => {
@@ -298,72 +326,19 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     carregarCategorias();
     carregarFavoritos();
     carregarStatusBackup();
-  }, [carregarCategorias, carregarFavoritos, carregarStatusBackup]);
+    transactionsRepo.expurgarLixeiraAntiga(30).catch((e) => {
+      console.error('Erro ao expurgar lixeira antiga:', e);
+    });
+  }, [carregarCategorias, carregarFavoritos, carregarStatusBackup, transactionsRepo]);
 
   useEffect(() => {
     carregarDadosPainel();
   }, [carregarDadosPainel, mesSelecionado]);
 
-  // Controles do modal de transação
-  const abrirModalNovoLancamento = (tipoInicial: TipoTransacao = 'despesa') => {
-    AppHaptics.toqueLeve();
-    setModalTransacaoTipoInicial(tipoInicial);
-    setTransacaoParaEdicao(null);
-    setTransacaoParaDuplicacao(null);
-    setModalTransacaoAberto(true);
-  };
-
-  const abrirModalEditarLancamento = (transacao: Transacao) => {
-    AppHaptics.toqueLeve();
-    setTransacaoParaDuplicacao(null);
-    setTransacaoParaEdicao(transacao);
-    setModalTransacaoAberto(true);
-  };
-
-  const abrirModalDuplicarLancamento = (transacao: Transacao) => {
-    AppHaptics.toqueLeve();
-    setTransacaoParaEdicao(null);
-    setTransacaoParaDuplicacao(transacao);
-    setModalTransacaoAberto(true);
-  };
-
-  const fecharModalTransacao = () => {
-    setModalTransacaoAberto(false);
-    setTransacaoParaEdicao(null);
-    setTransacaoParaDuplicacao(null);
-  };
-
-  // Controles do modal de categoria
-  const abrirModalNovaCategoria = () => {
-    AppHaptics.toqueLeve();
-    setCategoriaParaEdicao(null);
-    setModalCategoriaAberto(true);
-  };
-
-  const abrirModalEditarCategoria = (categoria: Categoria) => {
-    AppHaptics.toqueLeve();
-    setCategoriaParaEdicao(categoria);
-    setModalCategoriaAberto(true);
-  };
-
-  const fecharModalCategoria = () => {
-    setModalCategoriaAberto(false);
-    setCategoriaParaEdicao(null);
-  };
-
-  // Controles do modal de fixos recorrentes
-  const abrirModalRecorrentes = () => {
-    AppHaptics.toqueLeve();
-    setModalRecorrentesAberto(true);
-  };
-
-  const fecharModalRecorrentes = () => {
-    setModalRecorrentesAberto(false);
-  };
-
   return (
     <AppContext.Provider
       value={{
+        ...modais,
         categoriesRepo,
         transactionsRepo,
         backupRepo,
@@ -394,27 +369,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         alternarStatusPago,
         modoPrivacidade,
         alternarModoPrivacidade,
+        definirModoPrivacidade,
         formatarValor,
         biometriaHabilitada,
         setBiometriaHabilitada,
         autenticado,
         setAutenticado,
-        modalTransacaoAberto,
-        modalTransacaoTipoInicial,
-        transacaoParaEdicao,
-        transacaoParaDuplicacao,
-        abrirModalNovoLancamento,
-        abrirModalEditarLancamento,
-        abrirModalDuplicarLancamento,
-        fecharModalTransacao,
-        modalCategoriaAberto,
-        categoriaParaEdicao,
-        abrirModalNovaCategoria,
-        abrirModalEditarCategoria,
-        fecharModalCategoria,
-        modalRecorrentesAberto,
-        abrirModalRecorrentes,
-        fecharModalRecorrentes,
         notificarMudancaDados,
       }}
     >

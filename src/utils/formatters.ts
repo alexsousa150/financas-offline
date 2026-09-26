@@ -103,6 +103,36 @@ export function getMesPosterior(mesAnoIso: string): string {
   return `${ano}-${String(mes).padStart(2, '0')}`;
 }
 
+/**
+ * Retorna intervalo de datas [inicio, fimExclusivo] para consultas indexadas de mês (YYYY-MM).
+ * Ex: '2026-09' -> { inicio: '2026-09-01', fimExclusivo: '2026-10-01' }
+ */
+export function getIntervaloMes(mesAnoIso: string): { inicio: string; fimExclusivo: string } {
+  const [anoStr, mesStr] = mesAnoIso.split('-');
+  let ano = parseInt(anoStr, 10);
+  let mes = parseInt(mesStr, 10);
+  const inicio = `${ano}-${String(mes).padStart(2, '0')}-01`;
+
+  mes += 1;
+  if (mes > 12) {
+    mes = 1;
+    ano += 1;
+  }
+  const fimExclusivo = `${ano}-${String(mes).padStart(2, '0')}-01`;
+  return { inicio, fimExclusivo };
+}
+
+/**
+ * Retorna intervalo de datas [inicio, fimExclusivo] para consultas indexadas de ano inteiro.
+ * Ex: 2026 -> { inicio: '2026-01-01', fimExclusivo: '2027-01-01' }
+ */
+export function getIntervaloAno(ano: number): { inicio: string; fimExclusivo: string } {
+  return {
+    inicio: `${ano}-01-01`,
+    fimExclusivo: `${ano + 1}-01-01`,
+  };
+}
+
 export function formatarVariacao(variacao: number | null | undefined): {
   texto: string;
   tipo: 'aumento' | 'queda' | 'neutro';
@@ -128,4 +158,41 @@ export function converterCentavosParaValor(textoCentavos: string): number {
   const digitos = textoCentavos.replace(/\D/g, '');
   if (!digitos) return 0;
   return parseFloat(digitos) / 100;
+}
+
+/**
+ * Converte valor em reais (float) para centavos inteiros (integer)
+ * Ex: 12.34 -> 1234
+ */
+export function reaisParaCentavos(valor: number): number {
+  return Math.round(valor * 100);
+}
+
+/**
+ * Converte centavos inteiros para valor em reais (float com 2 casas)
+ * Ex: 1234 -> 12.34
+ */
+export function centavosParaReais(centavos: number): number {
+  return Math.round(centavos) / 100;
+}
+
+/**
+ * Soma valores monetários com precisão absoluta de centavos
+ */
+export function somarMoeda(a: number, b: number): number {
+  return (Math.round(a * 100) + Math.round(b * 100)) / 100;
+}
+
+/**
+ * Subtrai valores monetários com precisão absoluta de centavos
+ */
+export function subtrairMoeda(a: number, b: number): number {
+  return (Math.round(a * 100) - Math.round(b * 100)) / 100;
+}
+
+/**
+ * Multiplica valor monetário por fator com arredondamento seguro de centavos
+ */
+export function multiplicarMoeda(valor: number, fator: number): number {
+  return Math.round(valor * fator * 100) / 100;
 }

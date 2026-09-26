@@ -1,6 +1,6 @@
 {
   "name": "alex-sousa",
-  "version": "1.6.0",
+  "version": "1.6.1",
   "main": "expo-router/entry",
   "dependencies": {
     "@expo/vector-icons": "^15.0.2",
@@ -38,7 +38,8 @@
     "release:patch": "node scripts/release.js patch",
     "release:minor": "node scripts/release.js minor",
     "release:major": "node scripts/release.js major",
-    "lint": "expo lint"
+    "lint": "expo lint",
+    "test": "node --experimental-strip-types tests/index.test.ts"
   },
   "private": true
 }

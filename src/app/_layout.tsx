@@ -6,11 +6,13 @@ import { Stack } from 'expo-router';
 import { DATABASE_NAME, inicializarBanco } from '../database/db';
 import { ThemeProvider, useTheme } from '../context/ThemeContext';
 import { AppProvider, useApp } from '../context/AppContext';
+import { ModalProvider } from '../context/ModalContext';
 
 import { TransactionModal } from '../components/TransactionModal';
 import { CategoryModal } from '../components/CategoryModal';
 import { RecurringModal } from '../components/RecurringModal';
 import { BiometricLockScreen } from '../components/BiometricLockScreen';
+import { ErrorBoundary } from '../components/ErrorBoundary';
 
 function TelaCarregamento() {
   return (
@@ -101,15 +103,19 @@ function RootProvidersAndModals() {
 export default function RootLayout() {
   return (
     <SafeAreaProvider>
-      <Suspense fallback={<TelaCarregamento />}>
-        <SQLiteProvider databaseName={DATABASE_NAME} onInit={inicializarBanco} useSuspense={false}>
-          <ThemeProvider>
-            <AppProvider>
-              <RootProvidersAndModals />
-            </AppProvider>
-          </ThemeProvider>
-        </SQLiteProvider>
-      </Suspense>
+      <ErrorBoundary>
+        <Suspense fallback={<TelaCarregamento />}>
+          <SQLiteProvider databaseName={DATABASE_NAME} onInit={inicializarBanco} useSuspense={false}>
+            <ThemeProvider>
+              <ModalProvider>
+                <AppProvider>
+                  <RootProvidersAndModals />
+                </AppProvider>
+              </ModalProvider>
+            </ThemeProvider>
+          </SQLiteProvider>
+        </Suspense>
+      </ErrorBoundary>
     </SafeAreaProvider>
   );
 }

@@ -15,7 +15,7 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '../context/ThemeContext';
 import { useApp } from '../context/AppContext';
-import { TipoTransacao, Transacao } from '../types';
+import { TipoTransacao, Transacao, FormaPagamento } from '../types';
 import {
   formatarMoeda,
   converterCentavosParaValor,
@@ -29,6 +29,14 @@ import { NotificationService } from '../services/notificationService';
 
 const OPCOES_PARCELAS = [2, 3, 4, 5, 6, 8, 10, 12, 18, 24];
 const DIAS_RAPIDOS = [1, 5, 10, 12, 15, 20, 25, 28, 30];
+
+const FORMAS_PAGAMENTO: { id: FormaPagamento; label: string; icone: any }[] = [
+  { id: 'pix', label: 'Pix', icone: 'flash-outline' },
+  { id: 'cartao_credito', label: 'Crédito', icone: 'card-outline' },
+  { id: 'cartao_debito', label: 'Débito', icone: 'card' },
+  { id: 'dinheiro', label: 'Dinheiro', icone: 'cash-outline' },
+  { id: 'outro', label: 'Outro', icone: 'ellipsis-horizontal-circle-outline' },
+];
 
 const SUGESTOES_DESCRICAO_PADRAO: Record<string, string[]> = {
   alimentação: ['Supermercado', 'Padaria', 'Almoço', 'iFood / Delivery', 'Feira / Açougue', 'Lanche'],
@@ -58,7 +66,6 @@ export const TransactionModal: React.FC<TransactionModalProps> = ({
 }) => {
   const { theme } = useTheme();
   const {
-    categoriesRepo,
     transactionsRepo,
     categorias,
     favoritos,
@@ -77,6 +84,9 @@ export const TransactionModal: React.FC<TransactionModalProps> = ({
 
   // Status Pago vs Pendente
   const [pago, setPago] = useState(true);
+
+  // Forma de Pagamento
+  const [formaPagamento, setFormaPagamento] = useState<FormaPagamento>('outro');
 
   // Seletor de data estendido
   const [mostrarDiasCustom, setMostrarDiasCustom] = useState(false);
@@ -105,6 +115,7 @@ export const TransactionModal: React.FC<TransactionModalProps> = ({
         setDataInputTexto(formatarDataBr(transacaoParaEdicao.data));
         setDescricao(transacaoParaEdicao.descricao || '');
         setPago(transacaoParaEdicao.pago !== 0);
+        setFormaPagamento(transacaoParaEdicao.forma_pagamento || 'outro');
         setIsParcelado(false); // Edição é pontual por parcela
       } else if (transacaoParaDuplicacao) {
         setTipo(transacaoParaDuplicacao.tipo);
@@ -116,6 +127,7 @@ export const TransactionModal: React.FC<TransactionModalProps> = ({
         setDataInputTexto(formatarDataBr(hoje));
         setDescricao(transacaoParaDuplicacao.descricao ? `${transacaoParaDuplicacao.descricao} (Cópia)` : '');
         setPago(true);
+        setFormaPagamento(transacaoParaDuplicacao.forma_pagamento || 'outro');
         setIsParcelado(false);
       } else {
         // Novo lançamento padrão
@@ -126,6 +138,7 @@ export const TransactionModal: React.FC<TransactionModalProps> = ({
         setDataInputTexto(formatarDataBr(hoje));
         setDescricao('');
         setPago(true);
+        setFormaPagamento('pix');
         setIsParcelado(false);
         setNumeroParcelas(3);
         if (categorias.length > 0) {
@@ -230,6 +243,7 @@ export const TransactionModal: React.FC<TransactionModalProps> = ({
           data: dataIso,
           descricao: descricao.trim(),
           pago: pago ? 1 : 0,
+          forma_pagamento: formaPagamento,
         });
       } else if (isParcelado && tipo === 'despesa') {
         // Criação de compra parcelada
@@ -243,6 +257,7 @@ export const TransactionModal: React.FC<TransactionModalProps> = ({
             conciliado: 0,
             origem: 'manual',
             pago: pago ? 1 : 0,
+            forma_pagamento: formaPagamento || 'cartao_credito',
           },
           numeroParcelas,
           valorNumerico
@@ -257,6 +272,7 @@ export const TransactionModal: React.FC<TransactionModalProps> = ({
           conciliado: 0,
           origem: 'manual',
           pago: pago ? 1 : 0,
+          forma_pagamento: formaPagamento,
         });
       }
 
@@ -474,6 +490,7 @@ export const TransactionModal: React.FC<TransactionModalProps> = ({
                     onValueChange={(val) => {
                       AppHaptics.toqueSelecao();
                       setIsParcelado(val);
+                      if (val) setFormaPagamento('cartao_credito');
                     }}
                     thumbColor={isParcelado ? theme.primary : '#F4F4F5'}
                     trackColor={{ false: '#71717A', true: theme.primaryLight }}
@@ -580,6 +597,50 @@ export const TransactionModal: React.FC<TransactionModalProps> = ({
                       ]}
                     >
                       {cat.nome}
+                    </Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </ScrollView>
+
+            {/* Seletor de Forma de Pagamento */}
+            <View style={[styles.secaoTituloLinha, { marginTop: 14 }]}>
+              <Text style={[styles.labelSecao, { color: theme.textSecondary }]}>Meio de Pagamento</Text>
+            </View>
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={styles.listaCategoriasHorizontal}
+            >
+              {FORMAS_PAGAMENTO.map((fp) => {
+                const selecionada = formaPagamento === fp.id;
+                return (
+                  <TouchableOpacity
+                    key={fp.id}
+                    onPress={() => {
+                      AppHaptics.toqueLeve();
+                      setFormaPagamento(fp.id);
+                    }}
+                    style={[
+                      styles.chipFormaPagamento,
+                      {
+                        backgroundColor: selecionada ? theme.primary : theme.inputBg,
+                        borderColor: selecionada ? theme.primary : theme.inputBorder,
+                      },
+                    ]}
+                  >
+                    <Ionicons
+                      name={fp.icone}
+                      size={16}
+                      color={selecionada ? '#FFFFFF' : theme.textSecondary}
+                    />
+                    <Text
+                      style={[
+                        styles.chipTexto,
+                        { color: selecionada ? '#FFFFFF' : theme.text },
+                      ]}
+                    >
+                      {fp.label}
                     </Text>
                   </TouchableOpacity>
                 );
@@ -1013,6 +1074,15 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingVertical: 8,
     paddingHorizontal: 14,
+    borderRadius: 12,
+    borderWidth: 1,
+    gap: 6,
+  },
+  chipFormaPagamento: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 8,
+    paddingHorizontal: 12,
     borderRadius: 12,
     borderWidth: 1,
     gap: 6,
