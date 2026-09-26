@@ -63,6 +63,7 @@ interface AppContextType {
   // Modo Privacidade
   modoPrivacidade: boolean;
   alternarModoPrivacidade: () => void;
+  definirModoPrivacidade: (priv: boolean) => Promise<void>;
   formatarValor: (valor: number) => string;
 
   // Biometria
@@ -171,6 +172,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const novoValor = !modoPrivacidade;
     setModoPrivacidade(novoValor);
     await settingsRepo.definirBooleano('modo_privacidade', novoValor);
+  };
+
+  const definirModoPrivacidade = async (habilitar: boolean) => {
+    setModoPrivacidade(habilitar);
+    await settingsRepo.definirBooleano('modo_privacidade', habilitar);
   };
 
   const setBiometriaHabilitada = async (habilitar: boolean) => {
@@ -394,6 +400,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         alternarStatusPago,
         modoPrivacidade,
         alternarModoPrivacidade,
+        definirModoPrivacidade,
         formatarValor,
         biometriaHabilitada,
         setBiometriaHabilitada,
