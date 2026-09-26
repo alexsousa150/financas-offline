@@ -43,6 +43,7 @@ const SUGESTOES_DESCRICAO_PADRAO: Record<string, string[]> = {
 
 interface TransactionModalProps {
   visivel: boolean;
+  tipoInicial?: TipoTransacao;
   transacaoParaEdicao?: Transacao | null;
   transacaoParaDuplicacao?: Transacao | null;
   onFechar: () => void;
@@ -50,12 +51,21 @@ interface TransactionModalProps {
 
 export const TransactionModal: React.FC<TransactionModalProps> = ({
   visivel,
+  tipoInicial,
   transacaoParaEdicao,
   transacaoParaDuplicacao,
   onFechar,
 }) => {
   const { theme } = useTheme();
-  const { categoriesRepo, transactionsRepo, categorias, carregarCategorias, notificarMudancaDados } = useApp();
+  const {
+    categoriesRepo,
+    transactionsRepo,
+    categorias,
+    favoritos,
+    executarLancamentoFavorito,
+    carregarCategorias,
+    notificarMudancaDados,
+  } = useApp();
 
   const [tipo, setTipo] = useState<TipoTransacao>('despesa');
   const [valorTextoCentavos, setValorTextoCentavos] = useState('');
@@ -109,7 +119,7 @@ export const TransactionModal: React.FC<TransactionModalProps> = ({
         setIsParcelado(false);
       } else {
         // Novo lançamento padrão
-        setTipo('despesa');
+        setTipo(tipoInicial || 'despesa');
         setValorTextoCentavos('');
         const hoje = getDataHojeIso();
         setDataIso(hoje);
@@ -129,7 +139,7 @@ export const TransactionModal: React.FC<TransactionModalProps> = ({
         inputValorRef.current?.focus();
       }, 150);
     }
-  }, [visivel, transacaoParaEdicao, transacaoParaDuplicacao, categorias]);
+  }, [visivel, transacaoParaEdicao, transacaoParaDuplicacao, categorias, tipoInicial]);
 
   const alternarTipo = (novoTipo: TipoTransacao) => {
     AppHaptics.toqueSelecao();
@@ -281,10 +291,10 @@ export const TransactionModal: React.FC<TransactionModalProps> = ({
           <View style={styles.cabecalho}>
             <Text style={[styles.titulo, { color: theme.text }]}>
               {transacaoParaEdicao
-                ? 'Editar Lançamento'
+                ? 'Editar lançamento'
                 : transacaoParaDuplicacao
-                ? 'Duplicar Lançamento'
-                : 'Novo Lançamento'}
+                ? 'Duplicar lançamento'
+                : 'Novo lançamento'}
             </Text>
             <TouchableOpacity onPress={onFechar} style={styles.botaoFechar}>
               <Ionicons name="close" size={24} color={theme.textMuted} />
@@ -338,6 +348,59 @@ export const TransactionModal: React.FC<TransactionModalProps> = ({
                 </Text>
               </TouchableOpacity>
             </View>
+
+            {/* Lançamentos Rápidos com 1 Toque (apenas em novo lançamento) */}
+            {!transacaoParaEdicao && !transacaoParaDuplicacao && favoritos.length > 0 && (
+              <View style={styles.secaoFavoritos}>
+                <View style={styles.linhaTopoFavoritos}>
+                  <Text style={[styles.rotuloFavoritos, { color: theme.textSecondary }]}>
+                    Lançamento rápido com 1 toque
+                  </Text>
+                  <Ionicons name="flash-outline" size={13} color={theme.warning} />
+                </View>
+                <ScrollView
+                  horizontal
+                  showsHorizontalScrollIndicator={false}
+                  contentContainerStyle={styles.scrollFavoritos}
+                >
+                  {favoritos.map((fav) => (
+                    <TouchableOpacity
+                      key={fav.id}
+                      activeOpacity={0.75}
+                      style={[
+                        styles.chipFavorito,
+                        {
+                          backgroundColor: theme.inputBg,
+                          borderColor: theme.inputBorder,
+                        },
+                      ]}
+                      onPress={async () => {
+                        await executarLancamentoFavorito(fav);
+                        onFechar();
+                      }}
+                    >
+                      <Ionicons
+                        name={(fav.icone as any) || 'pricetag-outline'}
+                        size={13}
+                        color={fav.categoria_cor || theme.primary}
+                        style={{ marginRight: 5 }}
+                      />
+                      <Text style={[styles.tituloChipFavorito, { color: theme.text }]}>
+                        {fav.titulo}
+                      </Text>
+                      <Text
+                        style={[
+                          styles.valorChipFavorito,
+                          { color: fav.tipo === 'despesa' ? theme.danger : theme.success },
+                        ]}
+                      >
+                        {formatarMoeda(fav.valor)}
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
+                </ScrollView>
+              </View>
+            )}
 
             {/* Input Valor Gigante com Teclado Numérico */}
             <View style={styles.valorContainer}>
@@ -1057,5 +1120,41 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     fontSize: 16,
     fontWeight: '800',
+  },
+  secaoFavoritos: {
+    marginTop: 10,
+    marginBottom: 4,
+  },
+  linhaTopoFavoritos: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 6,
+    paddingHorizontal: 2,
+  },
+  rotuloFavoritos: {
+    fontSize: 11,
+    fontWeight: '600',
+  },
+  scrollFavoritos: {
+    gap: 8,
+    paddingVertical: 2,
+  },
+  chipFavorito: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 11,
+    paddingVertical: 7,
+    borderRadius: 10,
+    borderWidth: 1,
+    gap: 6,
+  },
+  tituloChipFavorito: {
+    fontSize: 12,
+    fontWeight: '600',
+  },
+  valorChipFavorito: {
+    fontSize: 12,
+    fontWeight: '700',
   },
 });

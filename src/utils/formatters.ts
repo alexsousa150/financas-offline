@@ -63,6 +63,14 @@ export function getMesAnoAtualIso(): string {
   return `${ano}-${mes}`;
 }
 
+export function getNomeMesExtenso(mesNumero: number): string {
+  const meses = [
+    'Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho',
+    'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'
+  ];
+  return meses[mesNumero - 1] || '';
+}
+
 export function getNomeMesAno(mesAnoIso: string): string {
   const [ano, mes] = mesAnoIso.split('-');
   const meses = [

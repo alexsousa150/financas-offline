@@ -5,6 +5,28 @@ O formato é baseado no [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.
 
 ---
 
+## [1.6.0] - 2026-09-26
+
+### Atalhos no ícone do celular (App Shortcuts)
+- **Acesso direto com pressão contínua**: Ao segurar o ícone do aplicativo na tela inicial do Android, acesse instantaneamente "Nova despesa" ou "Nova receita", abrindo diretamente o formulário pré-configurado sem passar pela tela inicial (`expo-quick-actions`).
+- **Navegação otimizada**: Abertura responsiva e direta para registrar gastos imediatos na rua.
+
+### Fechamento mensal e relatório em PDF
+- **Relatório executivo completo em PDF**: Geração local de relatório em formato A4 (`expo-print` + `expo-sharing`) contendo resumo do período (receitas, despesas, saldo, taxa de economia), tabela detalhada por categoria com percentuais e histórico completo de transações do mês.
+- **100% offline**: O documento é gerado diretamente no processador do celular, sem envio para servidores externos.
+- **Exportação facilitada**: Botão disponível na tela de Análise e nas Configurações com compartilhamento nativo para WhatsApp, Google Drive, impressora ou armazenamento de arquivos.
+
+### Lançamentos favoritos com 1 toque
+- **Fim da preguiça de registrar pequenos gastos**: Atalhos rápidos horizontais no topo do formulário de novo lançamento para despesas habituais (Almoço, Café, Padaria, Combustível, Farmácia).
+- **Registro instantâneo**: Um único toque insere a despesa, a categoria e a data de hoje, já marcada como paga.
+- **Gestão dedicada**: Seção em Configurações para visualizar a lista de atalhos e remover favoritos indesejados. Tabela `favoritos` integrada ao backup e restauração JSON.
+
+### Aviso periódico para cópia de segurança (Backup)
+- **Lembrete preventivo contra perda de dados**: Alerta discreto na tela de Configurações quando houver mais de 30 lançamentos não salvos em backup ou mais de 30 dias desde a última exportação.
+- **Ação com 1 toque**: Botão "Fazer backup agora" integrado ao aviso para exportação imediata dos dados protegidos.
+
+---
+
 ## [1.5.0] - 2026-09-26
 
 ### Centralização e gestão de contas fixas

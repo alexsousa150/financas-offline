@@ -2,10 +2,12 @@ import React, { createContext, useContext, useState, useEffect, useCallback } fr
 import { useSQLiteContext } from 'expo-sqlite';
 import { CategoriesRepository } from '../database/categoriesRepo';
 import { TransactionsRepository } from '../database/transactionsRepo';
-import { BackupRepository } from '../database/backupRepo';
+import { BackupRepository, StatusBackupInfo } from '../database/backupRepo';
 import { SettingsRepository } from '../database/settingsRepo';
 import { RecurringRepository } from '../database/recurringRepo';
+import { FavoritesRepository } from '../database/favoritesRepo';
 import { ReconciliationService } from '../services/reconciliationService';
+import { PdfReportService } from '../services/pdfReportService';
 import {
   Categoria,
   Transacao,
@@ -13,8 +15,10 @@ import {
   RankingCategoria,
   TetoDiarioInfo,
   AnaliseEssencialVsEstilo,
+  Favorito,
+  TipoTransacao,
 } from '../types';
-import { getMesAnoAtualIso, formatarMoeda } from '../utils/formatters';
+import { getMesAnoAtualIso, formatarMoeda, getDataHojeIso } from '../utils/formatters';
 import { AppHaptics } from '../utils/haptics';
 
 interface AppContextType {
@@ -24,13 +28,26 @@ interface AppContextType {
   backupRepo: BackupRepository;
   settingsRepo: SettingsRepository;
   recurringRepo: RecurringRepository;
+  favoritesRepo: FavoritesRepository;
   reconciliationService: ReconciliationService;
 
-  // Estado
+  // Estado do Mês
   mesSelecionado: string; // YYYY-MM
   setMesSelecionado: (mesAno: string) => void;
   categorias: Categoria[];
   carregarCategorias: () => Promise<void>;
+
+  // Favoritos (Lançamento Rápido com 1 toque)
+  favoritos: Favorito[];
+  carregarFavoritos: () => Promise<void>;
+  executarLancamentoFavorito: (favorito: Favorito) => Promise<void>;
+
+  // Status e Aviso Periódico de Backup
+  statusBackup: StatusBackupInfo;
+  carregarStatusBackup: () => Promise<void>;
+
+  // Relatório PDF
+  exportarRelatorioPdfMes: (mesAno: string) => Promise<void>;
 
   // Resumos e dados do mês selecionado
   resumoMes: ResumoFinanceiro;
@@ -54,9 +71,10 @@ interface AppContextType {
 
   // Ações de modal
   modalTransacaoAberto: boolean;
+  modalTransacaoTipoInicial: TipoTransacao;
   transacaoParaEdicao: Transacao | null;
   transacaoParaDuplicacao: Transacao | null;
-  abrirModalNovoLancamento: () => void;
+  abrirModalNovoLancamento: (tipoInicial?: TipoTransacao) => void;
   abrirModalEditarLancamento: (transacao: Transacao) => void;
   abrirModalDuplicarLancamento: (transacao: Transacao) => void;
   fecharModalTransacao: () => void;
@@ -85,10 +103,19 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [backupRepo] = useState(() => new BackupRepository(db));
   const [settingsRepo] = useState(() => new SettingsRepository(db));
   const [recurringRepo] = useState(() => new RecurringRepository(db));
+  const [favoritesRepo] = useState(() => new FavoritesRepository(db));
   const [reconciliationService] = useState(() => new ReconciliationService(transactionsRepo));
 
   const [mesSelecionado, setMesSelecionado] = useState<string>(getMesAnoAtualIso());
   const [categorias, setCategorias] = useState<Categoria[]>([]);
+  const [favoritos, setFavoritos] = useState<Favorito[]>([]);
+  const [statusBackup, setStatusBackup] = useState<StatusBackupInfo>({
+    precisaBackup: false,
+    diasSemBackup: null,
+    novosLancamentos: 0,
+    ultimoBackupEm: null,
+  });
+
   const [resumoMes, setResumoMes] = useState<ResumoFinanceiro>({
     receitas: 0,
     despesas: 0,
@@ -109,10 +136,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   // Privacidade e Biometria
   const [modoPrivacidade, setModoPrivacidade] = useState(false);
   const [biometriaHabilitada, setBiometriaHabilitadaState] = useState(false);
-  const [autenticado, setAutenticado] = useState(true); // Começa true até carregar a config
+  const [autenticado, setAutenticado] = useState(true);
 
   // Estados dos modais globais
   const [modalTransacaoAberto, setModalTransacaoAberto] = useState(false);
+  const [modalTransacaoTipoInicial, setModalTransacaoTipoInicial] = useState<TipoTransacao>('despesa');
   const [transacaoParaEdicao, setTransacaoParaEdicao] = useState<Transacao | null>(null);
   const [transacaoParaDuplicacao, setTransacaoParaDuplicacao] = useState<Transacao | null>(null);
 
@@ -130,7 +158,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       const bio = await settingsRepo.obterBooleano('biometria_habilitada', false);
       setBiometriaHabilitadaState(bio);
       if (bio) {
-        setAutenticado(false); // Exige desbloqueio inicial
+        setAutenticado(false);
       }
     })();
   }, [settingsRepo]);
@@ -164,9 +192,71 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
   }, [categoriesRepo]);
 
+  const carregarFavoritos = useCallback(async () => {
+    try {
+      const lista = await favoritesRepo.listar();
+      setFavoritos(lista);
+    } catch (e) {
+      console.error('Erro ao carregar favoritos:', e);
+    }
+  }, [favoritesRepo]);
+
+  const carregarStatusBackup = useCallback(async () => {
+    try {
+      const st = await backupRepo.verificarStatusBackup();
+      setStatusBackup(st);
+    } catch (e) {
+      console.error('Erro ao verificar status do backup:', e);
+    }
+  }, [backupRepo]);
+
+  const executarLancamentoFavorito = async (favorito: Favorito) => {
+    try {
+      AppHaptics.toqueSucesso();
+      await transactionsRepo.criar({
+        valor: favorito.valor,
+        tipo: favorito.tipo,
+        categoria_id: favorito.categoria_id,
+        data: getDataHojeIso(),
+        descricao: favorito.titulo,
+        conciliado: 0,
+        pago: 1,
+        origem: 'manual',
+      });
+      await notificarMudancaDados();
+    } catch (e) {
+      console.error('Erro ao executar lançamento favorito:', e);
+    }
+  };
+
+  const exportarRelatorioPdfMes = async (mesAno: string) => {
+    try {
+      AppHaptics.toqueLeve();
+      const [resumo, ranking, analise, transacoes, recorrentes] = await Promise.all([
+        transactionsRepo.obterResumoMes(mesAno),
+        transactionsRepo.obterRankingCategorias(mesAno, 'despesa'),
+        transactionsRepo.obterAnaliseEssencialVsEstilo(mesAno),
+        transactionsRepo.listar({ mesAno }),
+        recurringRepo.listar(),
+      ]);
+
+      await PdfReportService.gerarECompartilhar({
+        mesAno,
+        resumo,
+        ranking,
+        analiseEssencial: analise,
+        transacoes,
+        recorrentes,
+      });
+      AppHaptics.toqueSucesso();
+    } catch (e) {
+      console.error('Erro ao exportar PDF do mês:', e);
+      throw e;
+    }
+  };
+
   const carregarDadosPainel = useCallback(async () => {
     try {
-      // Processa automaticamente os lançamentos fixos recorrentes para o mês selecionado
       await recurringRepo.processarRecorrentesDoMes(mesSelecionado);
 
       const [resumo, ranking, recentes, teto, analise] = await Promise.all([
@@ -181,10 +271,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       setTransacoesRecentes(recentes);
       setTetoDiario(teto);
       setAnaliseEssencial(analise);
+      await carregarStatusBackup();
     } catch (e) {
       console.error('Erro ao carregar painel:', e);
     }
-  }, [transactionsRepo, recurringRepo, mesSelecionado]);
+  }, [transactionsRepo, recurringRepo, mesSelecionado, carregarStatusBackup]);
 
   const alternarStatusPago = async (id: number, novoStatus: number) => {
     try {
@@ -197,20 +288,23 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const notificarMudancaDados = useCallback(async () => {
-    await Promise.all([carregarCategorias(), carregarDadosPainel()]);
-  }, [carregarCategorias, carregarDadosPainel]);
+    await Promise.all([carregarCategorias(), carregarFavoritos(), carregarDadosPainel(), carregarStatusBackup()]);
+  }, [carregarCategorias, carregarFavoritos, carregarDadosPainel, carregarStatusBackup]);
 
   useEffect(() => {
     carregarCategorias();
-  }, [carregarCategorias]);
+    carregarFavoritos();
+    carregarStatusBackup();
+  }, [carregarCategorias, carregarFavoritos, carregarStatusBackup]);
 
   useEffect(() => {
     carregarDadosPainel();
   }, [carregarDadosPainel, mesSelecionado]);
 
   // Controles do modal de transação
-  const abrirModalNovoLancamento = () => {
+  const abrirModalNovoLancamento = (tipoInicial: TipoTransacao = 'despesa') => {
     AppHaptics.toqueLeve();
+    setModalTransacaoTipoInicial(tipoInicial);
     setTransacaoParaEdicao(null);
     setTransacaoParaDuplicacao(null);
     setModalTransacaoAberto(true);
@@ -272,6 +366,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         backupRepo,
         settingsRepo,
         recurringRepo,
+        favoritesRepo,
         reconciliationService,
         mesSelecionado,
         setMesSelecionado: (m) => {
@@ -280,6 +375,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         },
         categorias,
         carregarCategorias,
+        favoritos,
+        carregarFavoritos,
+        executarLancamentoFavorito,
+        statusBackup,
+        carregarStatusBackup,
+        exportarRelatorioPdfMes,
         resumoMes,
         rankingGastos,
         transacoesRecentes,
@@ -295,6 +396,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         autenticado,
         setAutenticado,
         modalTransacaoAberto,
+        modalTransacaoTipoInicial,
         transacaoParaEdicao,
         transacaoParaDuplicacao,
         abrirModalNovoLancamento,

@@ -51,6 +51,14 @@ export const RecurringModal: React.FC<RecurringModalProps> = ({ visivel, onFecha
     }
   };
 
+  const fecharFormulario = () => {
+    setModoFormulario(false);
+    setItemParaEdicao(null);
+    setValorTextoCentavos('');
+    setDescricao('');
+    setDiaVencimento('5');
+  };
+
   useEffect(() => {
     if (visivel) {
       carregar();
@@ -80,14 +88,6 @@ export const RecurringModal: React.FC<RecurringModalProps> = ({ visivel, onFecha
     setDiaVencimento(String(item.dia_vencimento));
     setCategoriaId(item.categoria_id);
     setModoFormulario(true);
-  };
-
-  const fecharFormulario = () => {
-    setModoFormulario(false);
-    setItemParaEdicao(null);
-    setValorTextoCentavos('');
-    setDescricao('');
-    setDiaVencimento('5');
   };
 
   const valorNumerico = converterCentavosParaValor(valorTextoCentavos);

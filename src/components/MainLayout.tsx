@@ -1,7 +1,9 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { View, StyleSheet, TouchableOpacity, Text, StatusBar, Platform } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
+import * as QuickActions from 'expo-quick-actions';
+import { useQuickActionCallback } from 'expo-quick-actions/hooks';
 import { useTheme } from '../context/ThemeContext';
 import { useApp } from '../context/AppContext';
 import { HomeScreen } from '../screens/HomeScreen';
@@ -24,6 +26,7 @@ export const MainLayout: React.FC = () => {
   const { theme } = useTheme();
   const {
     modalTransacaoAberto,
+    modalTransacaoTipoInicial,
     transacaoParaEdicao,
     transacaoParaDuplicacao,
     abrirModalNovoLancamento,
@@ -39,6 +42,39 @@ export const MainLayout: React.FC = () => {
   } = useApp();
 
   const [telaAtiva, setTelaAtiva] = useState<TelaAtiva>('inicio');
+
+  // Configura atalhos rápidos do ícone do aplicativo (App Shortcuts)
+  useEffect(() => {
+    try {
+      QuickActions.setItems([
+        {
+          id: 'nova_despesa',
+          title: 'Nova despesa',
+          subtitle: 'Registrar gasto',
+          icon: Platform.OS === 'ios' ? 'symbol:minus.circle' : undefined,
+          params: { action: 'nova_despesa' },
+        },
+        {
+          id: 'nova_receita',
+          title: 'Nova receita',
+          subtitle: 'Registrar entrada',
+          icon: Platform.OS === 'ios' ? 'symbol:plus.circle' : undefined,
+          params: { action: 'nova_receita' },
+        },
+      ]);
+    } catch (e) {
+      console.warn('Erro ao configurar atalhos do aplicativo:', e);
+    }
+  }, []);
+
+  // Ouve quando o usuário clica em um atalho ao segurar o ícone do app
+  useQuickActionCallback((action) => {
+    if (action?.params?.action === 'nova_despesa') {
+      abrirModalNovoLancamento('despesa');
+    } else if (action?.params?.action === 'nova_receita') {
+      abrirModalNovoLancamento('receita');
+    }
+  });
 
   const navegarPara = (novaTela: TelaAtiva) => {
     AppHaptics.toqueSelecao();
@@ -208,6 +244,7 @@ export const MainLayout: React.FC = () => {
       {/* Modal Global de Novo / Editar Lançamento */}
       <TransactionModal
         visivel={modalTransacaoAberto}
+        tipoInicial={modalTransacaoTipoInicial}
         transacaoParaEdicao={transacaoParaEdicao}
         transacaoParaDuplicacao={transacaoParaDuplicacao}
         onFechar={fecharModalTransacao}

@@ -6,6 +6,8 @@ import {
   ScrollView,
   TouchableOpacity,
   RefreshControl,
+  ActivityIndicator,
+  Alert,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '../context/ThemeContext';
@@ -26,9 +28,11 @@ export const AnalyticsScreen: React.FC = () => {
     analiseEssencial,
     transactionsRepo,
     carregarDadosPainel,
+    exportarRelatorioPdfMes,
   } = useApp();
 
   const [atualizando, setAtualizando] = useState(false);
+  const [gerandoPdf, setGerandoPdf] = useState(false);
   const [modoPeriodo, setModoPeriodo] = useState<'mes' | 'ano'>('mes');
   const [comprometimentoFuturo, setComprometimentoFuturo] = useState<ComprometimentoFuturo[]>([]);
   const [resumoAno, setResumoAno] = useState<{
@@ -79,6 +83,17 @@ export const AnalyticsScreen: React.FC = () => {
     resumoMes.receitas > 0
       ? ((resumoMes.receitas - resumoMes.despesas) / resumoMes.receitas) * 100
       : 0;
+
+  const handleExportarPdf = async () => {
+    try {
+      setGerandoPdf(true);
+      await exportarRelatorioPdfMes(mesSelecionado);
+    } catch (e: any) {
+      Alert.alert('Erro ao gerar PDF', 'Não foi possível gerar o relatório. ' + (e.message || ''));
+    } finally {
+      setGerandoPdf(false);
+    }
+  };
 
   return (
     <ScrollView
@@ -250,6 +265,26 @@ export const AnalyticsScreen: React.FC = () => {
             </Text>
           </View>
         </View>
+
+        {modoPeriodo === 'mes' && (
+          <TouchableOpacity
+            style={[styles.botaoExportarPdf, { backgroundColor: theme.inputBg, borderColor: theme.inputBorder }]}
+            onPress={handleExportarPdf}
+            disabled={gerandoPdf}
+            activeOpacity={0.8}
+          >
+            {gerandoPdf ? (
+              <ActivityIndicator color={theme.text} size="small" />
+            ) : (
+              <>
+                <Ionicons name="document-text-outline" size={17} color={theme.primary} style={{ marginRight: 8 }} />
+                <Text style={[styles.textoBotaoExportarPdf, { color: theme.text }]}>
+                  Exportar fechamento em PDF
+                </Text>
+              </>
+            )}
+          </TouchableOpacity>
+        )}
       </View>
 
       {/* Diagnóstico Essencial vs Estilo de Vida */}
@@ -556,6 +591,19 @@ const styles = StyleSheet.create({
   valorMetrica: {
     fontSize: 16,
     fontWeight: '800',
+  },
+  botaoExportarPdf: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 11,
+    borderRadius: 12,
+    borderWidth: 1,
+    marginTop: 12,
+  },
+  textoBotaoExportarPdf: {
+    fontSize: 13,
+    fontWeight: '700',
   },
   cardDiagnosticoEssencial: {
     marginHorizontal: 16,

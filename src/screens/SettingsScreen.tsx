@@ -28,6 +28,13 @@ export const SettingsScreen: React.FC = () => {
     settingsRepo,
     transactionsRepo,
     recurringRepo,
+    favoritesRepo,
+    favoritos,
+    carregarFavoritos,
+    statusBackup,
+    carregarStatusBackup,
+    exportarRelatorioPdfMes,
+    mesSelecionado,
     notificarMudancaDados,
     biometriaHabilitada,
     setBiometriaHabilitada,
@@ -36,6 +43,7 @@ export const SettingsScreen: React.FC = () => {
 
   const [exportando, setExportando] = useState(false);
   const [exportandoCsv, setExportandoCsv] = useState(false);
+  const [exportandoPdf, setExportandoPdf] = useState(false);
   const [restaurando, setRestaurando] = useState(false);
   const [lembretesAtivos, setLembretesAtivos] = useState(true);
   const [contasFixasQtd, setContasFixasQtd] = useState(0);
@@ -60,9 +68,13 @@ export const SettingsScreen: React.FC = () => {
     (async () => {
       const lemb = await settingsRepo.obterBooleano('lembretes_habilitados', true);
       setLembretesAtivos(lemb);
-      await carregarResumoContasFixas();
+      await Promise.all([
+        carregarResumoContasFixas(),
+        carregarStatusBackup(),
+        carregarFavoritos(),
+      ]);
     })();
-  }, [settingsRepo, carregarResumoContasFixas]);
+  }, [settingsRepo, carregarResumoContasFixas, carregarStatusBackup, carregarFavoritos]);
 
   const handleAlternarBiometria = async (novoValor: boolean) => {
     AppHaptics.toqueLeve();
@@ -124,11 +136,25 @@ export const SettingsScreen: React.FC = () => {
       AppHaptics.toqueLeve();
       setExportando(true);
       await backupRepo.exportarBackup();
+      await carregarStatusBackup();
       AppHaptics.toqueSucesso();
     } catch (e: any) {
       Alert.alert('Falha no backup', 'Não foi possível exportar os dados. ' + (e.message || ''));
     } finally {
       setExportando(false);
+    }
+  };
+
+  const handleExportarPdf = async () => {
+    try {
+      AppHaptics.toqueLeve();
+      setExportandoPdf(true);
+      await exportarRelatorioPdfMes(mesSelecionado);
+      AppHaptics.toqueSucesso();
+    } catch (e: any) {
+      Alert.alert('Erro ao gerar relatório', 'Não foi possível gerar o arquivo PDF. ' + (e.message || ''));
+    } finally {
+      setExportandoPdf(false);
     }
   };
 
@@ -143,6 +169,29 @@ export const SettingsScreen: React.FC = () => {
     } finally {
       setExportandoCsv(false);
     }
+  };
+
+  const handleRemoverFavorito = (id: number, titulo: string) => {
+    Alert.alert(
+      'Remover favorito?',
+      `Deseja excluir o atalho "${titulo}" da lista de lançamentos rápidos?`,
+      [
+        { text: 'Cancelar', style: 'cancel' },
+        {
+          text: 'Remover',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              await favoritesRepo.excluir(id);
+              await carregarFavoritos();
+              AppHaptics.toqueSucesso();
+            } catch (e) {
+              Alert.alert('Erro', 'Não foi possível remover o favorito.');
+            }
+          },
+        },
+      ]
+    );
   };
 
   const handleLimparHistorico = () => {
@@ -228,6 +277,43 @@ export const SettingsScreen: React.FC = () => {
         </Text>
       </View>
 
+      {/* Banner de Aviso de Backup Periódico */}
+      {statusBackup.precisaBackup && (
+        <View style={[styles.cardAlertaBackup, { backgroundColor: theme.warningLight, borderColor: theme.warning }]}>
+          <View style={styles.topoAlertaBackup}>
+            <View style={[styles.circuloAlertaBackup, { backgroundColor: theme.warning }]}>
+              <Ionicons name="cloud-upload-outline" size={20} color="#FFFFFF" />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={[styles.tituloAlertaBackup, { color: theme.text }]}>
+                Cópia de segurança recomendada
+              </Text>
+              <Text style={[styles.descAlertaBackup, { color: theme.textSecondary }]}>
+                {statusBackup.diasSemBackup !== null
+                  ? `Você tem ${statusBackup.novosLancamentos} novos lançamentos desde o último backup há ${statusBackup.diasSemBackup} dias.`
+                  : `Você já possui ${statusBackup.novosLancamentos} lançamentos sem nenhuma cópia salva.`}{' '}
+                Exporte um backup para proteger seus dados contra imprevistos.
+              </Text>
+            </View>
+          </View>
+          <TouchableOpacity
+            style={[styles.botaoAlertaBackup, { backgroundColor: theme.warning }]}
+            onPress={handleExportar}
+            disabled={exportando}
+            activeOpacity={0.8}
+          >
+            {exportando ? (
+              <ActivityIndicator color="#FFFFFF" size="small" />
+            ) : (
+              <>
+                <Ionicons name="download-outline" size={16} color="#FFFFFF" style={{ marginRight: 6 }} />
+                <Text style={styles.textoBotaoAlertaBackup}>Fazer backup agora</Text>
+              </>
+            )}
+          </TouchableOpacity>
+        </View>
+      )}
+
       {/* Seção Contas Fixas e Lembretes */}
       <View style={[styles.card, { backgroundColor: theme.card, borderColor: theme.cardBorder }]}>
         <Text style={[styles.tituloSecao, { color: theme.text }]}>Contas e rendas fixas</Text>
@@ -240,7 +326,6 @@ export const SettingsScreen: React.FC = () => {
           style={[styles.itemLink, { backgroundColor: theme.inputBg, borderColor: theme.inputBorder }]}
           onPress={async () => {
             abrirModalRecorrentes();
-            // Ao fechar, podemos atualizar o resumo
             setTimeout(carregarResumoContasFixas, 1000);
           }}
         >
@@ -275,6 +360,63 @@ export const SettingsScreen: React.FC = () => {
             thumbColor={lembretesAtivos ? theme.primary : '#A1A1AA'}
             trackColor={{ false: '#71717A', true: theme.primaryLight }}
           />
+        </View>
+      </View>
+
+      {/* Seção Lançamentos Favoritos (1 toque) */}
+      <View style={[styles.card, { backgroundColor: theme.card, borderColor: theme.cardBorder }]}>
+        <View style={styles.linhaCabecalhoSecao}>
+          <Text style={[styles.tituloSecao, { color: theme.text, marginBottom: 0 }]}>
+            Lançamentos favoritos (1 toque)
+          </Text>
+          <View style={[styles.badgeContagem, { backgroundColor: theme.primaryLight }]}>
+            <Text style={[styles.textoBadgeContagem, { color: theme.primary }]}>
+              {favoritos.length} atalho{favoritos.length === 1 ? '' : 's'}
+            </Text>
+          </View>
+        </View>
+        <Text style={[styles.descricaoSecao, { color: theme.textSecondary, marginTop: 4, marginBottom: 12 }]}>
+          Gastos frequentes do dia a dia prontos para registro instantâneo com 1 toque no botão de novo lançamento (+) ou ao segurar o ícone do aplicativo na tela inicial do celular.
+        </Text>
+
+        <View style={styles.gradeFavoritos}>
+          {favoritos.map((fav) => (
+            <View
+              key={fav.id}
+              style={[
+                styles.itemFavoritoConfig,
+                { backgroundColor: theme.inputBg, borderColor: theme.inputBorder },
+              ]}
+            >
+              <View
+                style={[
+                  styles.circuloIconeFavorito,
+                  { backgroundColor: fav.categoria_cor ? `${fav.categoria_cor}20` : theme.primaryLight },
+                ]}
+              >
+                <Ionicons
+                  name={(fav.icone || fav.categoria_icone || 'pricetag-outline') as any}
+                  size={16}
+                  color={fav.categoria_cor || theme.primary}
+                />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={[styles.nomeFavoritoConfig, { color: theme.text }]} numberOfLines={1}>
+                  {fav.titulo}
+                </Text>
+                <Text style={[styles.valorFavoritoConfig, { color: theme.textSecondary }]}>
+                  {formatarMoeda(fav.valor)}
+                </Text>
+              </View>
+              <TouchableOpacity
+                onPress={() => handleRemoverFavorito(fav.id, fav.titulo)}
+                hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                style={styles.botaoExcluirFavorito}
+              >
+                <Ionicons name="close-circle-outline" size={18} color={theme.textMuted} />
+              </TouchableOpacity>
+            </View>
+          ))}
         </View>
       </View>
 
@@ -402,6 +544,19 @@ export const SettingsScreen: React.FC = () => {
           Seus dados ficam gravados exclusivamente neste celular. Exporte um arquivo de backup periodicamente para guardar uma cópia segura ou migrar para outro aparelho.
         </Text>
 
+        <View style={[styles.boxStatusBackup, { backgroundColor: theme.inputBg, borderColor: theme.inputBorder }]}>
+          <Ionicons
+            name={statusBackup.precisaBackup ? 'alert-circle-outline' : 'checkmark-circle-outline'}
+            size={18}
+            color={statusBackup.precisaBackup ? theme.warning : theme.success}
+          />
+          <Text style={[styles.textoStatusBackup, { color: theme.textSecondary }]}>
+            {statusBackup.ultimoBackupEm
+              ? `Último backup: ${new Date(statusBackup.ultimoBackupEm).toLocaleDateString('pt-BR')} (${statusBackup.novosLancamentos} novos lançamentos)`
+              : `Nenhum backup realizado ainda (${statusBackup.novosLancamentos} lançamentos sem cópia)`}
+          </Text>
+        </View>
+
         <TouchableOpacity
           style={[styles.botaoAcao, { backgroundColor: theme.primary }]}
           onPress={handleExportar}
@@ -412,7 +567,24 @@ export const SettingsScreen: React.FC = () => {
           ) : (
             <>
               <Ionicons name="download-outline" size={20} color="#FFFFFF" style={{ marginRight: 8 }} />
-              <Text style={styles.textoBotaoAcao}>Exportar backup dos dados</Text>
+              <Text style={styles.textoBotaoAcao}>Exportar backup dos dados (JSON)</Text>
+            </>
+          )}
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          style={[styles.botaoAcaoSecundario, { backgroundColor: theme.inputBg, borderColor: theme.inputBorder, marginBottom: 10 }]}
+          onPress={handleExportarPdf}
+          disabled={exportandoPdf}
+        >
+          {exportandoPdf ? (
+            <ActivityIndicator color={theme.text} />
+          ) : (
+            <>
+              <Ionicons name="document-outline" size={20} color={theme.primary} style={{ marginRight: 8 }} />
+              <Text style={[styles.textoBotaoAcaoSecundario, { color: theme.text }]}>
+                Exportar fechamento mensal (PDF)
+              </Text>
             </>
           )}
         </TouchableOpacity>
@@ -443,7 +615,7 @@ export const SettingsScreen: React.FC = () => {
             <ActivityIndicator color={theme.text} />
           ) : (
             <>
-              <Ionicons name="document-text-outline" size={20} color={theme.primary} style={{ marginRight: 8 }} />
+              <Ionicons name="document-text-outline" size={20} color={theme.text} style={{ marginRight: 8 }} />
               <Text style={[styles.textoBotaoAcaoSecundario, { color: theme.text }]}>
                 Exportar planilha (CSV)
               </Text>
@@ -675,6 +847,100 @@ const styles = StyleSheet.create({
   textoItemPrivacidade: {
     fontSize: 13,
     lineHeight: 18,
+    flex: 1,
+  },
+  cardAlertaBackup: {
+    padding: 16,
+    borderRadius: 16,
+    borderWidth: 1.5,
+    marginBottom: 16,
+  },
+  topoAlertaBackup: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 12,
+  },
+  circuloAlertaBackup: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  tituloAlertaBackup: {
+    fontSize: 15,
+    fontWeight: '800',
+    marginBottom: 4,
+  },
+  descAlertaBackup: {
+    fontSize: 13,
+    lineHeight: 18,
+  },
+  botaoAlertaBackup: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 10,
+    paddingHorizontal: 16,
+    borderRadius: 10,
+    marginTop: 12,
+    alignSelf: 'flex-start',
+  },
+  textoBotaoAlertaBackup: {
+    color: '#FFFFFF',
+    fontWeight: '700',
+    fontSize: 13,
+  },
+  badgeContagem: {
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 8,
+  },
+  textoBadgeContagem: {
+    fontSize: 11,
+    fontWeight: '700',
+  },
+  gradeFavoritos: {
+    gap: 8,
+  },
+  itemFavoritoConfig: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 10,
+    borderRadius: 12,
+    borderWidth: 1,
+    gap: 10,
+  },
+  circuloIconeFavorito: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  nomeFavoritoConfig: {
+    fontSize: 13,
+    fontWeight: '700',
+  },
+  valorFavoritoConfig: {
+    fontSize: 12,
+    marginTop: 1,
+  },
+  botaoExcluirFavorito: {
+    padding: 4,
+  },
+  boxStatusBackup: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    padding: 12,
+    borderRadius: 12,
+    borderWidth: 1,
+    marginBottom: 12,
+  },
+  textoStatusBackup: {
+    fontSize: 12,
+    fontWeight: '500',
     flex: 1,
   },
   versaoTexto: {

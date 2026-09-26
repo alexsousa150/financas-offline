@@ -44,9 +44,6 @@ export const DonutChart: React.FC<DonutChartProps> = ({
   const circunferencia = 2 * Math.PI * raio;
   const centro = tamanho / 2;
 
-  // Calcula os offsets para o strokeDasharray de cada fatia
-  let acumuladoPercentual = 0;
-
   return (
     <View style={styles.container}>
       <View style={{ width: tamanho, height: tamanho, position: 'relative', alignItems: 'center', justifyContent: 'center' }}>
@@ -64,11 +61,13 @@ export const DonutChart: React.FC<DonutChartProps> = ({
             {dados.map((fatia, index) => {
               if (fatia.percentual <= 0) return null;
 
+              const acumuladoAteAqui = dados
+                .slice(0, index)
+                .reduce((acc, curr) => acc + (curr.percentual > 0 ? curr.percentual : 0), 0);
+
               const tamanhoFatia = (fatia.percentual / 100) * circunferencia;
               const espacoRestante = circunferencia - tamanhoFatia;
-              const offset = -((acumuladoPercentual / 100) * circunferencia);
-
-              acumuladoPercentual += fatia.percentual;
+              const offset = -((acumuladoAteAqui / 100) * circunferencia);
 
               return (
                 <Circle

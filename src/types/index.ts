@@ -121,12 +121,25 @@ export interface LancamentoRecorrente {
   categoria_icone?: string;
 }
 
+export interface Favorito {
+  id: number;
+  titulo: string;
+  valor: number;
+  tipo: TipoTransacao;
+  categoria_id: number;
+  icone?: string;
+  categoria_nome?: string;
+  categoria_cor?: string;
+  categoria_icone?: string;
+}
+
 export interface BackupData {
   versao: number;
   exportadoEm: string;
   categorias: Categoria[];
   transacoes: Transacao[];
   recorrentes?: LancamentoRecorrente[];
+  favoritos?: Favorito[];
   configuracoes?: Record<string, string>;
   importacoes?: ImportacaoExtrato[];
 }

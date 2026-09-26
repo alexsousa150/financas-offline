@@ -76,6 +76,15 @@ export async function inicializarBanco(db: SQLiteDatabase): Promise<void> {
       ativo INTEGER DEFAULT 1,
       ultimo_mes_gerado TEXT
     );
+
+    CREATE TABLE IF NOT EXISTS favoritos (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      titulo TEXT NOT NULL,
+      valor REAL NOT NULL,
+      tipo TEXT NOT NULL DEFAULT 'despesa',
+      categoria_id INTEGER NOT NULL REFERENCES categorias(id),
+      icone TEXT
+    );
   `);
 
   // 1. Migrações seguras de colunas em 'categorias' para bancos já existentes
@@ -151,5 +160,51 @@ export async function inicializarBanco(db: SQLiteDatabase): Promise<void> {
         cat.tipo_gasto
       );
     }
+  }
+
+  // 6. Verifica se favoritos padrão já existem, se não, semeia
+  try {
+    const favContagem = await db.getFirstAsync<{ count: number }>(
+      'SELECT COUNT(*) as count FROM favoritos;'
+    );
+
+    if (!favContagem || favContagem.count === 0) {
+      const catAlim = await db.getFirstAsync<{ id: number }>(
+        "SELECT id FROM categorias WHERE nome = 'Alimentação' LIMIT 1;"
+      );
+      const catTrans = await db.getFirstAsync<{ id: number }>(
+        "SELECT id FROM categorias WHERE nome = 'Transporte' LIMIT 1;"
+      );
+      const catSaude = await db.getFirstAsync<{ id: number }>(
+        "SELECT id FROM categorias WHERE nome = 'Saúde' LIMIT 1;"
+      );
+
+      const idAlim = catAlim?.id || 1;
+      const idTrans = catTrans?.id || 1;
+      const idSaude = catSaude?.id || 1;
+
+      await db.runAsync(
+        'INSERT INTO favoritos (titulo, valor, tipo, categoria_id, icone) VALUES (?, ?, ?, ?, ?);',
+        'Almoço', 25.00, 'despesa', idAlim, 'restaurant-outline'
+      );
+      await db.runAsync(
+        'INSERT INTO favoritos (titulo, valor, tipo, categoria_id, icone) VALUES (?, ?, ?, ?, ?);',
+        'Café', 6.00, 'despesa', idAlim, 'cafe-outline'
+      );
+      await db.runAsync(
+        'INSERT INTO favoritos (titulo, valor, tipo, categoria_id, icone) VALUES (?, ?, ?, ?, ?);',
+        'Padaria', 12.00, 'despesa', idAlim, 'basket-outline'
+      );
+      await db.runAsync(
+        'INSERT INTO favoritos (titulo, valor, tipo, categoria_id, icone) VALUES (?, ?, ?, ?, ?);',
+        'Combustível', 50.00, 'despesa', idTrans, 'car-sport-outline'
+      );
+      await db.runAsync(
+        'INSERT INTO favoritos (titulo, valor, tipo, categoria_id, icone) VALUES (?, ?, ?, ?, ?);',
+        'Farmácia', 30.00, 'despesa', idSaude, 'fitness-outline'
+      );
+    }
+  } catch (e) {
+    console.warn('Erro ao verificar/semear favoritos:', e);
   }
 }
