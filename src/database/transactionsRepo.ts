@@ -8,6 +8,8 @@ import {
   TetoDiarioInfo,
   AnaliseEssencialVsEstilo,
   FormaPagamento,
+  ProjecaoFluxoMes,
+  AnomaliaGasto,
 } from '../types';
 import {
   getMesAnterior,
@@ -15,6 +17,7 @@ import {
   getIntervaloMes,
   getIntervaloAno,
   subtrairMoeda,
+  somarMoeda,
   reaisParaCentavos,
   centavosParaReais,
 } from '../utils/formatters';
@@ -49,6 +52,7 @@ export class TransactionsRepository {
         t.total_parcelas,
         t.grupo_parcelamento_id,
         t.forma_pagamento,
+        t.deleted_at,
         t.created_at,
         c.nome as categoria_nome,
         c.icone as categoria_icone,
@@ -56,7 +60,7 @@ export class TransactionsRepository {
         c.tipo_gasto as categoria_tipo_gasto
       FROM transacoes t
       INNER JOIN categorias c ON t.categoria_id = c.id
-      WHERE 1=1
+      WHERE t.deleted_at IS NULL
     `;
     const params: any[] = [];
 
@@ -122,6 +126,7 @@ export class TransactionsRepository {
         t.total_parcelas,
         t.grupo_parcelamento_id,
         t.forma_pagamento,
+        t.deleted_at,
         t.created_at,
         c.nome as categoria_nome,
         c.icone as categoria_icone,
@@ -129,7 +134,7 @@ export class TransactionsRepository {
         c.tipo_gasto as categoria_tipo_gasto
       FROM transacoes t
       INNER JOIN categorias c ON t.categoria_id = c.id
-      WHERE t.id = ?;
+      WHERE t.id = ? AND t.deleted_at IS NULL;
     `;
     const row = await this.db.getFirstAsync<Transacao>(sql, id);
     return row || null;
@@ -297,18 +302,100 @@ export class TransactionsRepository {
   }
 
   async excluir(id: number, excluirTodasDoGrupo: boolean = false): Promise<void> {
+    const agora = new Date().toISOString();
     if (excluirTodasDoGrupo) {
       const transacao = await this.obterPorId(id);
       if (transacao && transacao.grupo_parcelamento_id) {
         await this.db.runAsync(
-          'DELETE FROM transacoes WHERE grupo_parcelamento_id = ?;',
+          'UPDATE transacoes SET deleted_at = ? WHERE grupo_parcelamento_id = ? AND deleted_at IS NULL;',
+          agora,
           transacao.grupo_parcelamento_id
         );
         return;
       }
     }
 
+    await this.db.runAsync('UPDATE transacoes SET deleted_at = ? WHERE id = ?;', agora, id);
+  }
+
+  /**
+   * Lista itens atualmente na lixeira (soft-deleted), ordenados pela data de exclusão
+   */
+  async listarLixeira(): Promise<Transacao[]> {
+    const sql = `
+      SELECT 
+        t.id,
+        t.valor,
+        t.tipo,
+        t.categoria_id,
+        t.data,
+        t.descricao,
+        t.conciliado,
+        t.origem,
+        t.pago,
+        t.parcela_atual,
+        t.total_parcelas,
+        t.grupo_parcelamento_id,
+        t.forma_pagamento,
+        t.deleted_at,
+        t.created_at,
+        c.nome as categoria_nome,
+        c.icone as categoria_icone,
+        c.cor as categoria_cor,
+        c.tipo_gasto as categoria_tipo_gasto
+      FROM transacoes t
+      INNER JOIN categorias c ON t.categoria_id = c.id
+      WHERE t.deleted_at IS NOT NULL
+      ORDER BY t.deleted_at DESC;
+    `;
+    return await this.db.getAllAsync<Transacao>(sql);
+  }
+
+  /**
+   * Restaura uma transação excluída (ou todo o grupo de parcelamento)
+   */
+  async restaurar(id: number, restaurarTodasDoGrupo: boolean = false): Promise<void> {
+    if (restaurarTodasDoGrupo) {
+      const transacao = await this.db.getFirstAsync<Transacao>(
+        'SELECT grupo_parcelamento_id FROM transacoes WHERE id = ?;',
+        id
+      );
+      if (transacao && transacao.grupo_parcelamento_id) {
+        await this.db.runAsync(
+          'UPDATE transacoes SET deleted_at = NULL WHERE grupo_parcelamento_id = ?;',
+          transacao.grupo_parcelamento_id
+        );
+        return;
+      }
+    }
+
+    await this.db.runAsync('UPDATE transacoes SET deleted_at = NULL WHERE id = ?;', id);
+  }
+
+  /**
+   * Esvazia permanentemente todos os itens da lixeira
+   */
+  async esvaziarLixeira(): Promise<number> {
+    const result = await this.db.runAsync('DELETE FROM transacoes WHERE deleted_at IS NOT NULL;');
+    return result.changes;
+  }
+
+  /**
+   * Exclusão permanente de um item específico da lixeira
+   */
+  async excluirDefinitivo(id: number): Promise<void> {
     await this.db.runAsync('DELETE FROM transacoes WHERE id = ?;', id);
+  }
+
+  /**
+   * Remove permanentemente itens apagados há mais de N dias (padrão 30 dias)
+   */
+  async expurgarLixeiraAntiga(dias: number = 30): Promise<number> {
+    const dataLimite = new Date();
+    dataLimite.setDate(dataLimite.getDate() - dias);
+    const limiteIso = dataLimite.toISOString();
+    const result = await this.db.runAsync('DELETE FROM transacoes WHERE deleted_at IS NOT NULL AND deleted_at < ?;', limiteIso);
+    return result.changes;
   }
 
   async duplicar(id: number, novaData?: string): Promise<number> {
@@ -380,7 +467,7 @@ export class TransactionsRepository {
          SUM(CASE WHEN tipo = 'despesa' AND pago = 0 THEN valor ELSE 0 END) as despesasPendentes,
          COUNT(CASE WHEN tipo = 'despesa' AND pago = 0 THEN 1 END) as contasPendentesQtd
        FROM transacoes 
-       WHERE data >= ? AND data < ?;`,
+       WHERE data >= ? AND data < ? AND deleted_at IS NULL;`,
       inicio,
       fimExclusivo
     );
@@ -434,7 +521,7 @@ export class TransactionsRepository {
          SUM(CASE WHEN tipo = 'despesa' AND pago = 1 THEN valor ELSE 0 END) as despesas,
          COUNT(DISTINCT substr(data, 1, 7)) as meses
        FROM transacoes 
-       WHERE data >= ? AND data < ?;`,
+       WHERE data >= ? AND data < ? AND deleted_at IS NULL;`,
       inicio,
       fimExclusivo
     );
@@ -462,7 +549,7 @@ export class TransactionsRepository {
     const { inicio: inicioAnt, fimExclusivo: fimAnt } = getIntervaloMes(mesAnterior);
 
     const totalPeriodoResult = await this.db.getFirstAsync<{ total: number | null }>(
-      `SELECT SUM(valor) as total FROM transacoes WHERE data >= ? AND data < ? AND tipo = ?;`,
+      `SELECT SUM(valor) as total FROM transacoes WHERE data >= ? AND data < ? AND tipo = ? AND deleted_at IS NULL;`,
       inicioAtual,
       fimAtual,
       tipo
@@ -488,7 +575,7 @@ export class TransactionsRepository {
          SUM(t.valor) as total
        FROM transacoes t
        INNER JOIN categorias c ON t.categoria_id = c.id
-       WHERE t.data >= ? AND t.data < ? AND t.tipo = ?
+       WHERE t.data >= ? AND t.data < ? AND t.tipo = ? AND t.deleted_at IS NULL
        GROUP BY c.id
        ORDER BY total DESC;`,
       inicioAtual,
@@ -504,7 +591,7 @@ export class TransactionsRepository {
          categoria_id,
          SUM(valor) as total
        FROM transacoes
-       WHERE data >= ? AND data < ? AND tipo = ?
+       WHERE data >= ? AND data < ? AND tipo = ? AND deleted_at IS NULL
        GROUP BY categoria_id;`,
       inicioAnt,
       fimAnt,
@@ -563,7 +650,7 @@ export class TransactionsRepository {
          SUM(t.valor) as total
        FROM transacoes t
        INNER JOIN categorias c ON t.categoria_id = c.id
-       WHERE t.data >= ? AND t.data < ? AND t.tipo = 'despesa'
+       WHERE t.data >= ? AND t.data < ? AND t.tipo = 'despesa' AND t.deleted_at IS NULL
        GROUP BY c.tipo_gasto;`,
       inicio,
       fimExclusivo
@@ -632,7 +719,8 @@ export class TransactionsRepository {
          WHERE data >= ? AND data < ? 
            AND tipo = 'despesa' 
            AND total_parcelas IS NOT NULL 
-           AND total_parcelas > 1;`,
+           AND total_parcelas > 1
+           AND deleted_at IS NULL;`,
         inicioMesFuturo,
         fimMesFuturo
       );
@@ -652,6 +740,182 @@ export class TransactionsRepository {
     }
 
     return resultado;
+  }
+
+  /**
+   * Projeção de Fluxo de Caixa (próximos N meses):
+   * Cruza receitas esperadas (recorrentes ativas) com despesas comprometidas (recorrentes + parcelas futuras)
+   * e projeta o saldo líquido de cada mês e a evolução patrimonial acumulada a partir do saldo atual.
+   */
+  async obterProjecaoFluxoCaixa(mesesAFrente: number = 3): Promise<ProjecaoFluxoMes[]> {
+    const hoje = new Date();
+    const anoAtual = hoje.getFullYear();
+    const mesAtual = hoje.getMonth() + 1; // 1-12
+    const mesAnoAtual = `${anoAtual}-${String(mesAtual).padStart(2, '0')}`;
+
+    // Obtém o saldo realizado atual para servir de ponto de partida acumulado
+    const resumoAtual = await this.obterResumoMes(mesAnoAtual);
+    let saldoAcumulado = resumoAtual.saldoRealizado;
+
+    // Receitas e despesas recorrentes mensais fixas ativas
+    const recorrentesReceitas = await this.db.getFirstAsync<{ total: number | null }>(
+      `SELECT SUM(valor) as total FROM lancamentos_recorrentes WHERE ativo = 1 AND tipo = 'receita';`
+    );
+    const totalRecorrentesReceitas = Math.round((recorrentesReceitas?.total || 0) * 100) / 100;
+
+    const recorrentesDespesas = await this.db.getFirstAsync<{ total: number | null }>(
+      `SELECT SUM(valor) as total FROM lancamentos_recorrentes WHERE ativo = 1 AND tipo = 'despesa';`
+    );
+    const totalRecorrentesDespesas = Math.round((recorrentesDespesas?.total || 0) * 100) / 100;
+
+    const resultado: ProjecaoFluxoMes[] = [];
+
+    for (let i = 1; i <= mesesAFrente; i++) {
+      let m = mesAtual + i;
+      let a = anoAtual;
+      while (m > 12) {
+        m -= 12;
+        a += 1;
+      }
+
+      const mesAnoIso = `${a}-${String(m).padStart(2, '0')}`;
+      const { inicio, fimExclusivo } = getIntervaloMes(mesAnoIso);
+
+      // Parcelas de despesas já agendadas para aquele mês
+      const parcelasResult = await this.db.getFirstAsync<{ total: number | null }>(
+        `SELECT SUM(valor) as total 
+         FROM transacoes 
+         WHERE data >= ? AND data < ? 
+           AND tipo = 'despesa' 
+           AND total_parcelas IS NOT NULL 
+           AND total_parcelas > 1
+           AND deleted_at IS NULL;`,
+        inicio,
+        fimExclusivo
+      );
+      const totalParcelasMes = Math.round((parcelasResult?.total || 0) * 100) / 100;
+
+      const receitasEsperadas = totalRecorrentesReceitas;
+      const despesasComprometidas = somarMoeda(totalRecorrentesDespesas, totalParcelasMes);
+      const saldoMesEstimado = subtrairMoeda(receitasEsperadas, despesasComprometidas);
+      saldoAcumulado = somarMoeda(saldoAcumulado, saldoMesEstimado);
+
+      resultado.push({
+        mesAno: mesAnoIso,
+        nomeMes: getNomeMesAno(mesAnoIso),
+        receitasEsperadas,
+        despesasComprometidas,
+        saldoMesEstimado,
+        saldoAcumuladoEstimado: saldoAcumulado,
+      });
+    }
+
+    return resultado;
+  }
+
+  /**
+   * Detecção Inteligente de Anomalias de Gastos:
+   * Compara o gasto da categoria no mês selecionado com a média dos últimos 3 meses anteriores.
+   * Se o gasto for > R$ 80 e estiver pelo menos 35% acima da média histórica, gera um alerta atípico.
+   */
+  async obterAnomaliasGastos(mesAno: string): Promise<AnomaliaGasto[]> {
+    const { inicio: inicioMesAtual, fimExclusivo: fimMesAtual } = getIntervaloMes(mesAno);
+
+    const [anoStr, mesStr] = mesAno.split('-');
+    const ano = parseInt(anoStr, 10);
+    const mes = parseInt(mesStr, 10);
+
+    const mesesAnteriores: string[] = [];
+    for (let i = 1; i <= 3; i++) {
+      let m = mes - i;
+      let a = ano;
+      while (m < 1) {
+        m += 12;
+        a -= 1;
+      }
+      mesesAnteriores.push(`${a}-${String(m).padStart(2, '0')}`);
+    }
+
+    // Calcula gasto do mês atual por categoria
+    const gastosAtuais = await this.db.getAllAsync<{
+      categoria_id: number;
+      nome: string;
+      icone: string;
+      cor: string;
+      total: number;
+    }>(
+      `SELECT 
+         c.id as categoria_id,
+         c.nome,
+         c.icone,
+         c.cor,
+         SUM(t.valor) as total
+       FROM transacoes t
+       INNER JOIN categorias c ON t.categoria_id = c.id
+       WHERE t.data >= ? AND t.data < ? AND t.tipo = 'despesa' AND t.deleted_at IS NULL
+       GROUP BY c.id;`,
+      inicioMesAtual,
+      fimMesAtual
+    );
+
+    if (gastosAtuais.length === 0) return [];
+
+    // Calcula total gasto nos 3 meses anteriores agrupado por categoria
+    const { inicio: dataInicioHistorico } = getIntervaloMes(mesesAnteriores[2]);
+    const { fimExclusivo: dataFimHistorico } = getIntervaloMes(mesesAnteriores[0]);
+
+    const historicoGastos = await this.db.getAllAsync<{
+      categoria_id: number;
+      totalHistorico: number;
+      mesesDistintos: number;
+    }>(
+      `SELECT 
+         categoria_id,
+         SUM(valor) as totalHistorico,
+         COUNT(DISTINCT substr(data, 1, 7)) as mesesDistintos
+       FROM transacoes
+       WHERE data >= ? AND data < ? AND tipo = 'despesa' AND deleted_at IS NULL
+       GROUP BY categoria_id;`,
+      dataInicioHistorico,
+      dataFimHistorico
+    );
+
+    const mapaHistorico = new Map<number, { total: number; meses: number }>();
+    for (const h of historicoGastos) {
+      mapaHistorico.set(h.categoria_id, {
+        total: h.totalHistorico,
+        meses: Math.max(1, h.mesesDistintos),
+      });
+    }
+
+    const anomalias: AnomaliaGasto[] = [];
+
+    for (const atual of gastosAtuais) {
+      const hist = mapaHistorico.get(atual.categoria_id);
+      if (!hist || hist.total <= 0) continue;
+
+      const mediaHistorica = Math.round((hist.total / hist.meses) * 100) / 100;
+      const diferenca = subtrairMoeda(atual.total, mediaHistorica);
+
+      // Regra de anomalia: gasto >= R$ 80, média histórica >= R$ 40, aumento >= 35%, e diferença >= R$ 50
+      if (atual.total >= 80 && mediaHistorica >= 40 && diferenca >= 50) {
+        const percentualAcima = Math.round(((atual.total - mediaHistorica) / mediaHistorica) * 100);
+        if (percentualAcima >= 35) {
+          anomalias.push({
+            categoriaId: atual.categoria_id,
+            categoriaNome: atual.nome,
+            categoriaIcone: atual.icone,
+            categoriaCor: atual.cor,
+            valorAtual: atual.total,
+            mediaHistorica,
+            percentualAcima,
+            diferenca,
+          });
+        }
+      }
+    }
+
+    return anomalias.sort((a, b) => b.percentualAcima - a.percentualAcima);
   }
 
   /**
@@ -710,6 +974,7 @@ export class TransactionsRepository {
       FROM transacoes t
       INNER JOIN categorias c ON t.categoria_id = c.id
       WHERE t.tipo = ?
+        AND t.deleted_at IS NULL
         AND ABS(t.valor - ?) < 0.05
         AND ABS(julianday(t.data) - julianday(?)) <= ?
       ORDER BY ABS(julianday(t.data) - julianday(?)) ASC
@@ -745,7 +1010,7 @@ export class TransactionsRepository {
         c.nome as categoria_nome
       FROM transacoes t
       INNER JOIN categorias c ON t.categoria_id = c.id
-      WHERE t.data >= ? AND t.data <= ?
+      WHERE t.data >= ? AND t.data <= ? AND t.deleted_at IS NULL
       ORDER BY t.data ASC;
     `;
     return await this.db.getAllAsync<Transacao>(sql, dataInicio, dataFim);

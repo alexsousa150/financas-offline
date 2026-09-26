@@ -32,12 +32,33 @@ export interface Transacao {
   total_parcelas?: number | null; // Ex: 3
   grupo_parcelamento_id?: string | null; // UUID ou ID comum para identificar o grupo da compra parcelada
   forma_pagamento?: FormaPagamento;
+  deleted_at?: string | null;
   created_at?: string;
   // Campos populados via JOIN
   categoria_nome?: string;
   categoria_icone?: string;
   categoria_cor?: string;
   categoria_tipo_gasto?: TipoGasto;
+}
+
+export interface ProjecaoFluxoMes {
+  mesAno: string; // YYYY-MM
+  nomeMes: string; // "Outubro 2026"
+  receitasEsperadas: number;
+  despesasComprometidas: number;
+  saldoMesEstimado: number;
+  saldoAcumuladoEstimado: number;
+}
+
+export interface AnomaliaGasto {
+  categoriaId: number;
+  categoriaNome: string;
+  categoriaIcone?: string;
+  categoriaCor?: string;
+  valorAtual: number;
+  mediaHistorica: number;
+  percentualAcima: number;
+  diferenca: number;
 }
 
 export interface TransacaoExtratoPendente {
@@ -50,6 +71,38 @@ export interface TransacaoExtratoPendente {
   jaConciliado: boolean;
   transacaoCorrespondenteId?: number;
   selecionadoParaImportar: boolean;
+}
+
+export interface ItemExtratoBruto {
+  data: string; // YYYY-MM-DD
+  descricao: string;
+  valor: number; // Sempre positivo
+  tipo: TipoTransacao; // 'receita' ou 'despesa'
+  fitId?: string;
+}
+
+export type BancoPresetId =
+  | 'nubank'
+  | 'inter'
+  | 'itau'
+  | 'bradesco'
+  | 'bb'
+  | 'caixa'
+  | 'c6'
+  | 'generico';
+
+export interface BancoPreset {
+  id: BancoPresetId;
+  nome: string;
+  cor: string;
+  icone: string;
+  descricao: string;
+}
+
+export interface ResultadoParseExtrato {
+  itens: ItemExtratoBruto[];
+  banco: BancoPreset;
+  formato: 'OFX' | 'CSV';
 }
 
 export interface ImportacaoExtrato {

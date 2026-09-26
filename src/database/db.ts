@@ -53,6 +53,7 @@ export async function inicializarBanco(db: SQLiteDatabase): Promise<void> {
       total_parcelas INTEGER DEFAULT NULL,
       grupo_parcelamento_id TEXT DEFAULT NULL,
       forma_pagamento TEXT DEFAULT 'outro',
+      deleted_at TEXT DEFAULT NULL,
       created_at TEXT DEFAULT CURRENT_TIMESTAMP
     );
 
@@ -193,6 +194,22 @@ export async function inicializarBanco(db: SQLiteDatabase): Promise<void> {
       }
     } catch (e) {
       console.warn('Migração 4 (forma_pagamento):', e);
+    }
+  });
+
+  // Migração 5: Suporte a soft delete (lixeira de 30 dias)
+  await executarMigracao(5, 'Coluna deleted_at em transacoes para soft delete', async () => {
+    try {
+      const colunasTransacoes = await db.getAllAsync<{ name: string }>('PRAGMA table_info(transacoes);');
+      const nomesTransacoes = new Set(colunasTransacoes.map((c) => c.name.toLowerCase()));
+      if (!nomesTransacoes.has('deleted_at')) {
+        await db.execAsync(`
+          ALTER TABLE transacoes ADD COLUMN deleted_at TEXT DEFAULT NULL;
+          CREATE INDEX IF NOT EXISTS idx_transacoes_deleted_at ON transacoes(deleted_at);
+        `);
+      }
+    } catch (e) {
+      console.warn('Migração 5 (deleted_at):', e);
     }
   });
 

@@ -326,7 +326,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     carregarCategorias();
     carregarFavoritos();
     carregarStatusBackup();
-  }, [carregarCategorias, carregarFavoritos, carregarStatusBackup]);
+    transactionsRepo.expurgarLixeiraAntiga(30).catch((e) => {
+      console.error('Erro ao expurgar lixeira antiga:', e);
+    });
+  }, [carregarCategorias, carregarFavoritos, carregarStatusBackup, transactionsRepo]);
 
   useEffect(() => {
     carregarDadosPainel();

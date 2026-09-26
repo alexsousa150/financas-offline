@@ -14,8 +14,8 @@ import * as DocumentPicker from 'expo-document-picker';
 import * as FileSystem from 'expo-file-system/legacy';
 import { useTheme } from '../context/ThemeContext';
 import { useApp } from '../context/AppContext';
-import { TransacaoExtratoPendente } from '../types';
-import { StatementParser } from '../services/statementParser';
+import { TransacaoExtratoPendente, BancoPreset } from '../types';
+import { StatementParser, BANCOS_PRESETS } from '../services/statementParser';
 import { formatarDataBr, formatarMoeda } from '../utils/formatters';
 
 export const ImportScreen: React.FC = () => {
@@ -31,6 +31,8 @@ export const ImportScreen: React.FC = () => {
   const [carregandoArquivo, setCarregandoArquivo] = useState(false);
   const [salvandoLote, setSalvandoLote] = useState(false);
   const [nomeArquivo, setNomeArquivo] = useState<string | null>(null);
+  const [bancoDetectado, setBancoDetectado] = useState<BancoPreset | null>(null);
+  const [formatoDetectado, setFormatoDetectado] = useState<'OFX' | 'CSV' | null>(null);
   const [itensPendentes, setItensPendentes] = useState<TransacaoExtratoPendente[]>([]);
   const [categoriaModalItem, setCategoriaModalItem] = useState<TransacaoExtratoPendente | null>(null);
 
@@ -55,10 +57,12 @@ export const ImportScreen: React.FC = () => {
         encoding: FileSystem.EncodingType.UTF8,
       });
 
-      // Faz o parse de OFX ou CSV
-      const itensBrutos = StatementParser.parse(conteudo, asset.name);
+      // Faz o parse de OFX ou CSV com detecção de presets de bancos
+      const resultadoParse = StatementParser.parseComDiagnostico(conteudo, asset.name);
+      setBancoDetectado(resultadoParse.banco);
+      setFormatoDetectado(resultadoParse.formato);
 
-      if (itensBrutos.length === 0) {
+      if (resultadoParse.itens.length === 0) {
         Alert.alert(
           'Arquivo sem lançamentos',
           'Não encontramos registros de transações compatíveis no arquivo selecionado. Verifique se é um arquivo OFX ou CSV bancário.'
@@ -69,7 +73,7 @@ export const ImportScreen: React.FC = () => {
 
       // Processa conciliação e sugestões de categorias com o banco SQLite existente
       const processados = await reconciliationService.processarExtrato(
-        itensBrutos,
+        resultadoParse.itens,
         categorias,
         3 // 3 dias de tolerância
       );
@@ -176,6 +180,8 @@ export const ImportScreen: React.FC = () => {
             onPress: () => {
               setItensPendentes([]);
               setNomeArquivo(null);
+              setBancoDetectado(null);
+              setFormatoDetectado(null);
             },
           },
         ]
@@ -234,6 +240,48 @@ export const ImportScreen: React.FC = () => {
             </View>
           </View>
 
+          {/* Presets dos Principais Bancos Brasileiros */}
+          <View style={[styles.cardPresets, { backgroundColor: theme.card, borderColor: theme.cardBorder }]}>
+            <View style={styles.linhaCabecalhoPresets}>
+              <Ionicons name="business-outline" size={18} color={theme.primary} />
+              <Text style={[styles.tituloPresets, { color: theme.text }]}>
+                Bancos com suporte nativo
+              </Text>
+            </View>
+            <Text style={[styles.descricaoPresets, { color: theme.textSecondary }]}>
+              Reconhecimento inteligente de layouts de extratos bancários e faturas de cartão:
+            </Text>
+            <View style={styles.gradePresets}>
+              {Object.values(BANCOS_PRESETS)
+                .filter((b) => b.id !== 'generico')
+                .map((preset) => (
+                  <View
+                    key={preset.id}
+                    style={[
+                      styles.badgePreset,
+                      { backgroundColor: theme.inputBg, borderColor: theme.inputBorder },
+                    ]}
+                  >
+                    <View style={[styles.pontoPreset, { backgroundColor: preset.cor }]} />
+                    <Text style={[styles.textoBadgePreset, { color: theme.text }]}>
+                      {preset.nome}
+                    </Text>
+                  </View>
+                ))}
+              <View
+                style={[
+                  styles.badgePreset,
+                  { backgroundColor: theme.inputBg, borderColor: theme.inputBorder },
+                ]}
+              >
+                <View style={[styles.pontoPreset, { backgroundColor: '#3B82F6' }]} />
+                <Text style={[styles.textoBadgePreset, { color: theme.text }]}>
+                  Padrão FEBRABAN
+                </Text>
+              </View>
+            </View>
+          </View>
+
           {/* Dicas e Funcionalidades de Inteligência */}
           <View style={[styles.cardDicas, { backgroundColor: theme.card, borderColor: theme.cardBorder }]}>
             <Text style={[styles.tituloDicas, { color: theme.text }]}>Como o extrato é processado</Text>
@@ -279,12 +327,43 @@ export const ImportScreen: React.FC = () => {
                 onPress={() => {
                   setItensPendentes([]);
                   setNomeArquivo(null);
+                  setBancoDetectado(null);
+                  setFormatoDetectado(null);
                 }}
                 style={styles.botaoCancelarImportacao}
               >
                 <Text style={[styles.textoCancelar, { color: theme.danger }]}>Descartar</Text>
               </TouchableOpacity>
             </View>
+
+            {/* Banner do Banco Identificado com Preset */}
+            {bancoDetectado && (
+              <View
+                style={[
+                  styles.bannerBancoDetectado,
+                  { backgroundColor: `${bancoDetectado.cor}18`, borderColor: `${bancoDetectado.cor}50` },
+                ]}
+              >
+                <View style={[styles.iconeBancoDetectado, { backgroundColor: bancoDetectado.cor }]}>
+                  <Ionicons name={bancoDetectado.icone as any} size={16} color="#FFFFFF" />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={[styles.nomeBancoDetectado, { color: theme.text }]}>
+                    {bancoDetectado.nome}
+                  </Text>
+                  <Text style={[styles.subtextoBancoDetectado, { color: theme.textSecondary }]}>
+                    {bancoDetectado.descricao}
+                  </Text>
+                </View>
+                {formatoDetectado && (
+                  <View style={[styles.badgeFormatoDetectado, { backgroundColor: theme.card }]}>
+                    <Text style={[styles.textoBadgeFormato, { color: theme.text }]}>
+                      .{formatoDetectado}
+                    </Text>
+                  </View>
+                )}
+              </View>
+            )}
 
             <View style={styles.linhaChipsStatus}>
               <View style={[styles.chipStatus, { backgroundColor: theme.warningLight }]}>
@@ -785,5 +864,84 @@ const styles = StyleSheet.create({
   textoFecharModal: {
     fontWeight: '700',
     fontSize: 14,
+  },
+  // Estilos dos Presets de Bancos e Banner de Diagnóstico
+  cardPresets: {
+    borderRadius: 18,
+    borderWidth: 1,
+    padding: 18,
+    marginBottom: 16,
+  },
+  linhaCabecalhoPresets: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginBottom: 6,
+  },
+  tituloPresets: {
+    fontSize: 15,
+    fontWeight: '800',
+  },
+  descricaoPresets: {
+    fontSize: 12,
+    lineHeight: 16,
+    marginBottom: 12,
+  },
+  gradePresets: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+  },
+  badgePreset: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 10,
+    borderWidth: 1,
+    gap: 6,
+  },
+  pontoPreset: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+  },
+  textoBadgePreset: {
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  bannerBancoDetectado: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 12,
+    borderRadius: 12,
+    borderWidth: 1,
+    marginTop: 10,
+    marginBottom: 6,
+    gap: 10,
+  },
+  iconeBancoDetectado: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  nomeBancoDetectado: {
+    fontSize: 14,
+    fontWeight: '800',
+  },
+  subtextoBancoDetectado: {
+    fontSize: 11,
+    marginTop: 1,
+  },
+  badgeFormatoDetectado: {
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 8,
+  },
+  textoBadgeFormato: {
+    fontSize: 11,
+    fontWeight: '800',
   },
 });

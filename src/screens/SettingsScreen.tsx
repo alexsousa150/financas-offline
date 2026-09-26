@@ -8,6 +8,8 @@ import {
   Alert,
   ActivityIndicator,
   Switch,
+  Modal,
+  FlatList,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -16,11 +18,11 @@ import * as FileSystem from 'expo-file-system/legacy';
 import * as LocalAuthentication from 'expo-local-authentication';
 import { useTheme } from '../context/ThemeContext';
 import { useApp } from '../context/AppContext';
-import { BackupData } from '../types';
+import { BackupData, Transacao } from '../types';
 import { NotificationService } from '../services/notificationService';
 import { AppHaptics } from '../utils/haptics';
 import { APP_VERSION, APP_BUILD } from '../utils/version';
-import { formatarMoeda } from '../utils/formatters';
+import { formatarMoeda, formatarDataBr } from '../utils/formatters';
 
 export const SettingsScreen: React.FC = () => {
   const { theme, modo, setModo } = useTheme();
@@ -69,6 +71,11 @@ export const SettingsScreen: React.FC = () => {
 
   const [contasFixasQtd, setContasFixasQtd] = useState(0);
   const [totalFixasMensal, setTotalFixasMensal] = useState(0);
+
+  // Estados da Lixeira de lançamentos (Soft delete)
+  const [modalLixeiraVisivel, setModalLixeiraVisivel] = useState(false);
+  const [itensLixeira, setItensLixeira] = useState<Transacao[]>([]);
+  const [carregandoLixeira, setCarregandoLixeira] = useState(false);
 
   // Verifica se há alguma alteração não salva
   const houveAlteracoes =
@@ -120,6 +127,15 @@ export const SettingsScreen: React.FC = () => {
     }
   }, [recurringRepo]);
 
+  const carregarLixeira = useCallback(async () => {
+    try {
+      const lista = await transactionsRepo.listarLixeira();
+      setItensLixeira(lista);
+    } catch (e) {
+      console.error('Erro ao carregar lixeira:', e);
+    }
+  }, [transactionsRepo]);
+
   useEffect(() => {
     let ativo = true;
     (async () => {
@@ -145,6 +161,7 @@ export const SettingsScreen: React.FC = () => {
           carregarResumoContasFixas(),
           carregarStatusBackup(),
           carregarFavoritos(),
+          carregarLixeira(),
         ]);
       } catch (e) {
         console.error('Erro ao inicializar configurações:', e);
@@ -154,7 +171,7 @@ export const SettingsScreen: React.FC = () => {
     return () => {
       ativo = false;
     };
-  }, [settingsRepo, modo, carregarResumoContasFixas, carregarStatusBackup, carregarFavoritos]);
+  }, [settingsRepo, modo, carregarResumoContasFixas, carregarStatusBackup, carregarFavoritos, carregarLixeira]);
 
   const handleAlternarBiometria = async (novoValor: boolean) => {
     AppHaptics.toqueLeve();
@@ -386,6 +403,77 @@ export const SettingsScreen: React.FC = () => {
               Alert.alert('Erro ao restaurar', 'O arquivo selecionado não é um backup válido.');
             } finally {
               setRestaurando(false);
+            }
+          },
+        },
+      ]
+    );
+  };
+
+  const handleAbrirLixeira = async () => {
+    AppHaptics.toqueLeve();
+    setCarregandoLixeira(true);
+    setModalLixeiraVisivel(true);
+    await carregarLixeira();
+    setCarregandoLixeira(false);
+  };
+
+  const handleRestaurarItemLixeira = async (item: Transacao) => {
+    try {
+      AppHaptics.toqueSucesso();
+      await transactionsRepo.restaurar(item.id);
+      await carregarLixeira();
+      await notificarMudancaDados();
+      Alert.alert('Lançamento restaurado', `"${item.descricao}" voltou para o seu extrato.`);
+    } catch (e) {
+      console.error('Erro ao restaurar:', e);
+      Alert.alert('Erro', 'Não foi possível restaurar este lançamento.');
+    }
+  };
+
+  const handleExcluirDefinitivoItem = (item: Transacao) => {
+    Alert.alert(
+      'Excluir definitivamente?',
+      `Deseja apagar "${item.descricao}" permanentemente? Essa ação não pode ser desfeita.`,
+      [
+        { text: 'Cancelar', style: 'cancel' },
+        {
+          text: 'Excluir definitivamente',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              AppHaptics.toqueAviso();
+              await transactionsRepo.excluirDefinitivo(item.id);
+              await carregarLixeira();
+            } catch (e) {
+              console.error('Erro ao excluir definitivo:', e);
+              Alert.alert('Erro', 'Não foi possível excluir o lançamento.');
+            }
+          },
+        },
+      ]
+    );
+  };
+
+  const handleEsvaziarLixeira = () => {
+    if (itensLixeira.length === 0) return;
+    Alert.alert(
+      'Esvaziar lixeira?',
+      `Tem certeza que deseja apagar permanentemente todos os ${itensLixeira.length} lançamentos excluídos?`,
+      [
+        { text: 'Cancelar', style: 'cancel' },
+        {
+          text: 'Esvaziar agora',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              AppHaptics.toqueAviso();
+              await transactionsRepo.esvaziarLixeira();
+              await carregarLixeira();
+              Alert.alert('Lixeira esvaziada', 'Todos os lançamentos foram apagados definitivamente.');
+            } catch (e) {
+              console.error('Erro ao esvaziar lixeira:', e);
+              Alert.alert('Erro', 'Não foi possível esvaziar a lixeira.');
             }
           },
         },
@@ -878,6 +966,24 @@ export const SettingsScreen: React.FC = () => {
           </TouchableOpacity>
 
           <TouchableOpacity
+            style={[styles.botaoAcaoSecundario, { backgroundColor: theme.inputBg, borderColor: theme.inputBorder, marginTop: 10 }]}
+            onPress={handleAbrirLixeira}
+            activeOpacity={0.8}
+          >
+            <Ionicons name="trash-bin-outline" size={20} color={theme.text} style={{ marginRight: 8 }} />
+            <Text style={[styles.textoBotaoAcaoSecundario, { color: theme.text, flex: 1 }]}>
+              Lixeira de lançamentos
+            </Text>
+            {itensLixeira.length > 0 && (
+              <View style={[styles.badgeLixeira, { backgroundColor: theme.dangerLight }]}>
+                <Text style={[styles.textoBadgeLixeira, { color: theme.danger }]}>
+                  {itensLixeira.length}
+                </Text>
+              </View>
+            )}
+          </TouchableOpacity>
+
+          <TouchableOpacity
             style={[styles.botaoAcaoSecundario, { backgroundColor: theme.dangerLight, borderColor: theme.danger, marginTop: 10 }]}
             onPress={handleLimparHistorico}
           >
@@ -1000,6 +1106,154 @@ export const SettingsScreen: React.FC = () => {
           )}
         </TouchableOpacity>
       </View>
+
+      {/* Modal da Lixeira de Lançamentos */}
+      <Modal
+        visible={modalLixeiraVisivel}
+        animationType="slide"
+        transparent={true}
+        onRequestClose={() => setModalLixeiraVisivel(false)}
+      >
+        <View style={styles.modalFundo}>
+          <View style={[styles.modalConteudoLixeira, { backgroundColor: theme.card, borderColor: theme.cardBorder }]}>
+            {/* Cabeçalho do Modal */}
+            <View style={styles.modalCabecalhoLixeira}>
+              <View style={{ flex: 1 }}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                  <Text style={[styles.modalTituloLixeira, { color: theme.text }]}>Lixeira</Text>
+                  {itensLixeira.length > 0 && (
+                    <View style={[styles.badgeLixeira, { backgroundColor: theme.dangerLight }]}>
+                      <Text style={[styles.textoBadgeLixeira, { color: theme.danger }]}>
+                        {itensLixeira.length}
+                      </Text>
+                    </View>
+                  )}
+                </View>
+                <Text style={[styles.modalSubtituloLixeira, { color: theme.textSecondary }]}>
+                  Itens apagados ficam salvos por até 30 dias para recuperação
+                </Text>
+              </View>
+
+              <TouchableOpacity
+                onPress={() => setModalLixeiraVisivel(false)}
+                style={[styles.botaoFecharModal, { backgroundColor: theme.inputBg }]}
+                hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+              >
+                <Ionicons name="close" size={20} color={theme.text} />
+              </TouchableOpacity>
+            </View>
+
+            {/* Barra de Ação Esvaziar */}
+            {itensLixeira.length > 0 && (
+              <View style={styles.barraAcoesLixeira}>
+                <TouchableOpacity
+                  style={[styles.botaoEsvaziarLixeira, { backgroundColor: theme.dangerLight, borderColor: theme.danger }]}
+                  onPress={handleEsvaziarLixeira}
+                  activeOpacity={0.8}
+                >
+                  <Ionicons name="trash-outline" size={15} color={theme.danger} style={{ marginRight: 6 }} />
+                  <Text style={[styles.textoBotaoEsvaziar, { color: theme.danger }]}>Esvaziar lixeira</Text>
+                </TouchableOpacity>
+              </View>
+            )}
+
+            {/* Lista ou Estado Vazio */}
+            {carregandoLixeira ? (
+              <View style={styles.centroCarregamentoLixeira}>
+                <ActivityIndicator size="large" color={theme.primary} />
+              </View>
+            ) : itensLixeira.length === 0 ? (
+              <View style={styles.vazioLixeiraContainer}>
+                <View style={[styles.circuloVazioLixeira, { backgroundColor: theme.inputBg }]}>
+                  <Ionicons name="trash-bin-outline" size={40} color={theme.textMuted} />
+                </View>
+                <Text style={[styles.textoVazioLixeira, { color: theme.text }]}>A lixeira está vazia</Text>
+                <Text style={[styles.subtextoVazioLixeira, { color: theme.textSecondary }]}>
+                  Nenhum lançamento foi excluído nos últimos 30 dias.
+                </Text>
+              </View>
+            ) : (
+              <FlatList
+                data={itensLixeira}
+                keyExtractor={(item) => String(item.id)}
+                showsVerticalScrollIndicator={false}
+                contentContainerStyle={{ paddingVertical: 8, paddingBottom: 24 }}
+                renderItem={({ item }) => {
+                  const dataFormatada = formatarDataBr(item.data);
+                  const dataExclusaoFormatada = item.deleted_at
+                    ? formatarDataBr(item.deleted_at.split('T')[0])
+                    : '';
+                  const ehReceita = item.tipo === 'receita';
+
+                  return (
+                    <View
+                      style={[
+                        styles.itemLixeiraCard,
+                        { backgroundColor: theme.inputBg, borderColor: theme.inputBorder },
+                      ]}
+                    >
+                      <View style={styles.itemLixeiraCorpo}>
+                        <View
+                          style={[
+                            styles.itemLixeiraIcone,
+                            { backgroundColor: item.categoria_cor ? `${item.categoria_cor}20` : theme.primaryLight },
+                          ]}
+                        >
+                          <Ionicons
+                            name={(item.categoria_icone || 'pricetag-outline') as any}
+                            size={18}
+                            color={item.categoria_cor || theme.primary}
+                          />
+                        </View>
+
+                        <View style={{ flex: 1, paddingRight: 8 }}>
+                          <Text style={[styles.itemLixeiraDescricao, { color: theme.text }]} numberOfLines={1}>
+                            {item.descricao}
+                          </Text>
+                          <Text style={[styles.itemLixeiraSubtexto, { color: theme.textSecondary }]}>
+                            {item.categoria_nome || 'Sem categoria'} • {dataFormatada}
+                            {dataExclusaoFormatada ? ` • Excluído: ${dataExclusaoFormatada}` : ''}
+                          </Text>
+                        </View>
+
+                        <Text
+                          style={[
+                            styles.itemLixeiraValor,
+                            { color: ehReceita ? theme.success : theme.danger },
+                          ]}
+                        >
+                          {ehReceita ? '+ ' : '- '}
+                          {formatarMoeda(item.valor)}
+                        </Text>
+                      </View>
+
+                      <View style={styles.itemLixeiraAcoes}>
+                        <TouchableOpacity
+                          style={[styles.botaoRestaurarItem, { backgroundColor: theme.primaryLight }]}
+                          onPress={() => handleRestaurarItemLixeira(item)}
+                          activeOpacity={0.7}
+                        >
+                          <Ionicons name="arrow-undo-outline" size={15} color={theme.primary} style={{ marginRight: 4 }} />
+                          <Text style={[styles.textoBotaoRestaurar, { color: theme.primary }]}>Restaurar</Text>
+                        </TouchableOpacity>
+
+                        <TouchableOpacity
+                          style={[styles.botaoExcluirDefinitivo, { backgroundColor: theme.dangerLight }]}
+                          onPress={() => handleExcluirDefinitivoItem(item)}
+                          activeOpacity={0.7}
+                        >
+                          <Ionicons name="trash-outline" size={15} color={theme.danger} style={{ marginRight: 4 }} />
+                          <Text style={[styles.textoBotaoExcluirDefinitivo, { color: theme.danger }]}>Excluir</Text>
+                        </TouchableOpacity>
+                      </View>
+                    </View>
+                  );
+                }}
+              />
+            )}
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 };
@@ -1389,5 +1643,162 @@ const styles = StyleSheet.create({
     height: 8,
     borderRadius: 4,
     marginLeft: 2,
+  },
+  // Estilos da Lixeira de Lançamentos
+  badgeLixeira: {
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  textoBadgeLixeira: {
+    fontSize: 11,
+    fontWeight: '800',
+  },
+  modalFundo: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.6)',
+    justifyContent: 'flex-end',
+  },
+  modalConteudoLixeira: {
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    borderWidth: 1,
+    borderBottomWidth: 0,
+    maxHeight: '85%',
+    minHeight: 350,
+    padding: 20,
+  },
+  modalCabecalhoLixeira: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    justifyContent: 'space-between',
+    paddingBottom: 14,
+    borderBottomWidth: 1,
+    borderBottomColor: 'rgba(150, 150, 150, 0.15)',
+  },
+  modalTituloLixeira: {
+    fontSize: 18,
+    fontWeight: '800',
+  },
+  modalSubtituloLixeira: {
+    fontSize: 12,
+    marginTop: 3,
+    lineHeight: 16,
+  },
+  botaoFecharModal: {
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  barraAcoesLixeira: {
+    flexDirection: 'row',
+    justifyContent: 'flex-end',
+    marginTop: 10,
+    marginBottom: 4,
+  },
+  botaoEsvaziarLixeira: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 8,
+    borderWidth: 1,
+  },
+  textoBotaoEsvaziar: {
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  centroCarregamentoLixeira: {
+    paddingVertical: 40,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  vazioLixeiraContainer: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 48,
+  },
+  circuloVazioLixeira: {
+    width: 72,
+    height: 72,
+    borderRadius: 36,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 12,
+  },
+  textoVazioLixeira: {
+    fontSize: 16,
+    fontWeight: '700',
+  },
+  subtextoVazioLixeira: {
+    fontSize: 13,
+    marginTop: 4,
+    textAlign: 'center',
+    paddingHorizontal: 20,
+  },
+  itemLixeiraCard: {
+    borderRadius: 14,
+    borderWidth: 1,
+    padding: 12,
+    marginBottom: 10,
+  },
+  itemLixeiraCorpo: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  itemLixeiraIcone: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 10,
+  },
+  itemLixeiraDescricao: {
+    fontSize: 14,
+    fontWeight: '700',
+  },
+  itemLixeiraSubtexto: {
+    fontSize: 11,
+    marginTop: 2,
+  },
+  itemLixeiraValor: {
+    fontSize: 14,
+    fontWeight: '800',
+  },
+  itemLixeiraAcoes: {
+    flexDirection: 'row',
+    justifyContent: 'flex-end',
+    gap: 8,
+    marginTop: 10,
+    paddingTop: 8,
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(150, 150, 150, 0.1)',
+  },
+  botaoRestaurarItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 8,
+  },
+  textoBotaoRestaurar: {
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  botaoExcluirDefinitivo: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 8,
+  },
+  textoBotaoExcluirDefinitivo: {
+    fontSize: 12,
+    fontWeight: '700',
   },
 });

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   View,
   Text,
@@ -16,7 +16,7 @@ import { MonthSelector } from '../components/MonthSelector';
 import { DonutChart, FatiaGrafico } from '../components/DonutChart';
 import { CategoryProgressBar } from '../components/CategoryProgressBar';
 import { formatarMoeda, formatarVariacao } from '../utils/formatters';
-import { ComprometimentoFuturo } from '../types';
+import { ComprometimentoFuturo, ProjecaoFluxoMes, AnomaliaGasto } from '../types';
 
 export const AnalyticsScreen: React.FC = () => {
   const { theme } = useTheme();
@@ -35,6 +35,8 @@ export const AnalyticsScreen: React.FC = () => {
   const [gerandoPdf, setGerandoPdf] = useState(false);
   const [modoPeriodo, setModoPeriodo] = useState<'mes' | 'ano'>('mes');
   const [comprometimentoFuturo, setComprometimentoFuturo] = useState<ComprometimentoFuturo[]>([]);
+  const [projecaoFluxo, setProjecaoFluxo] = useState<ProjecaoFluxoMes[]>([]);
+  const [anomaliasGastos, setAnomaliasGastos] = useState<AnomaliaGasto[]>([]);
   const [resumoAno, setResumoAno] = useState<{
     receitas: number;
     despesas: number;
@@ -45,22 +47,26 @@ export const AnalyticsScreen: React.FC = () => {
 
   const anoSelecionado = parseInt(mesSelecionado.split('-')[0], 10);
 
-  const carregarDadosExtras = async () => {
+  const carregarDadosExtras = useCallback(async () => {
     try {
-      const [futuro, anoRes] = await Promise.all([
+      const [futuro, anoRes, fluxo, anomalias] = await Promise.all([
         transactionsRepo.obterComprometimentoFuturo(6),
         transactionsRepo.obterResumoAno(anoSelecionado),
+        transactionsRepo.obterProjecaoFluxoCaixa(3),
+        transactionsRepo.obterAnomaliasGastos(mesSelecionado),
       ]);
       setComprometimentoFuturo(futuro);
       setResumoAno(anoRes);
+      setProjecaoFluxo(fluxo);
+      setAnomaliasGastos(anomalias);
     } catch (e) {
       console.error('Erro ao carregar dados extras:', e);
     }
-  };
+  }, [transactionsRepo, anoSelecionado, mesSelecionado]);
 
   useEffect(() => {
     carregarDadosExtras();
-  }, [mesSelecionado]);
+  }, [carregarDadosExtras]);
 
   const onRefresh = async () => {
     setAtualizando(true);
@@ -374,6 +380,104 @@ export const AnalyticsScreen: React.FC = () => {
           <Text style={[styles.dicaFinanceira, { color: theme.textSecondary }]}>
             Referência 50/30/20: até 50% em necessidades básicas, 30% em lazer e conforto, e 20% em reservas financeiras e investimentos futuros.
           </Text>
+        </View>
+      )}
+
+      {/* Alerta de Gastos Atípicos (Detecção de Anomalias) */}
+      {anomaliasGastos.length > 0 && (
+        <View style={[styles.cardAnomalias, { backgroundColor: theme.card, borderColor: theme.warning }]}>
+          <View style={styles.cabecalhoDiagnostico}>
+            <View style={[styles.circuloIcone, { backgroundColor: theme.warningLight }]}>
+              <Ionicons name="warning-outline" size={20} color={theme.warning} />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={[styles.tituloSecao, { color: theme.text }]}>Gastos atípicos detectados</Text>
+              <Text style={[styles.subtituloDiagnostico, { color: theme.textSecondary }]}>
+                Categorias com despesas significativamente acima da sua média recente
+              </Text>
+            </View>
+          </View>
+
+          <View style={styles.listaAnomalias}>
+            {anomaliasGastos.map((anomalia) => (
+              <View
+                key={anomalia.categoriaId}
+                style={[styles.itemAnomalia, { backgroundColor: theme.inputBg, borderColor: theme.inputBorder }]}
+              >
+                <View style={styles.linhaTopoAnomalia}>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, flex: 1 }}>
+                    <Ionicons
+                      name={(anomalia.categoriaIcone as any) || 'pricetag-outline'}
+                      size={16}
+                      color={anomalia.categoriaCor || theme.primary}
+                    />
+                    <Text style={[styles.nomeCategoriaAnomalia, { color: theme.text }]}>
+                      {anomalia.categoriaNome}
+                    </Text>
+                  </View>
+                  <View style={[styles.badgeAumento, { backgroundColor: theme.dangerLight }]}>
+                    <Ionicons name="arrow-up" size={11} color={theme.danger} />
+                    <Text style={[styles.textoBadgeAumento, { color: theme.danger }]}>
+                      +{anomalia.percentualAcima}%
+                    </Text>
+                  </View>
+                </View>
+
+                <Text style={[styles.textoDetalheAnomalia, { color: theme.textSecondary }]}>
+                  Gasto atual de <Text style={{ fontWeight: '700', color: theme.text }}>{formatarMoeda(anomalia.valorAtual)}</Text> contra média histórica de{' '}
+                  <Text style={{ fontWeight: '600', color: theme.textMuted }}>{formatarMoeda(anomalia.mediaHistorica)}</Text> (+{formatarMoeda(anomalia.diferenca)}).
+                </Text>
+              </View>
+            ))}
+          </View>
+        </View>
+      )}
+
+      {/* Projeção de Fluxo de Caixa (Próximos 3 Meses) */}
+      {projecaoFluxo.length > 0 && (
+        <View style={[styles.cardComprometimento, { backgroundColor: theme.card, borderColor: theme.cardBorder }]}>
+          <View style={styles.cabecalhoDiagnostico}>
+            <View style={[styles.circuloIcone, { backgroundColor: theme.primaryLight }]}>
+              <Ionicons name="calendar-outline" size={20} color={theme.primary} />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={[styles.tituloSecao, { color: theme.text }]}>Fluxo de caixa projetado</Text>
+              <Text style={[styles.subtituloDiagnostico, { color: theme.textSecondary }]}>
+                Previsão cruzando receitas fixas com despesas e parcelas
+              </Text>
+            </View>
+          </View>
+
+          <View style={styles.listaMesesFuturos}>
+            {projecaoFluxo.map((p) => {
+              const positivo = p.saldoMesEstimado >= 0;
+              return (
+                <View
+                  key={p.mesAno}
+                  style={[styles.itemMesFuturo, { backgroundColor: theme.inputBg, borderColor: theme.inputBorder }]}
+                >
+                  <View style={{ flex: 1 }}>
+                    <Text style={[styles.nomeMesFuturo, { color: theme.text }]}>{p.nomeMes}</Text>
+                    <Text style={[styles.detalhesMesFuturo, { color: theme.textSecondary }]}>
+                      Entradas: {formatarMoeda(p.receitasEsperadas)} • Saídas: {formatarMoeda(p.despesasComprometidas)}
+                    </Text>
+                    <Text style={[styles.detalhesMesFuturo, { color: theme.textMuted, marginTop: 2 }]}>
+                      Saldo estimado acumulado: {formatarMoeda(p.saldoAcumuladoEstimado)}
+                    </Text>
+                  </View>
+
+                  <View style={{ alignItems: 'flex-end' }}>
+                    <Text style={[styles.valorTotalFuturo, { color: positivo ? theme.success : theme.danger }]}>
+                      {positivo ? '+' : ''}{formatarMoeda(p.saldoMesEstimado)}
+                    </Text>
+                    <Text style={{ fontSize: 10, fontWeight: '700', color: positivo ? theme.success : theme.danger }}>
+                      {positivo ? 'Margem Livre' : 'Déficit Previsto'}
+                    </Text>
+                  </View>
+                </View>
+              );
+            })}
+          </View>
         </View>
       )}
 
@@ -691,6 +795,53 @@ const styles = StyleSheet.create({
     paddingTop: 10,
     borderTopWidth: 1,
     borderTopColor: 'rgba(150, 150, 150, 0.15)',
+  },
+  cardAnomalias: {
+    marginHorizontal: 16,
+    marginTop: 14,
+    padding: 16,
+    borderRadius: 18,
+    borderWidth: 1.5,
+  },
+  cabecalhoAnomalia: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    marginBottom: 12,
+  },
+  listaAnomalias: {
+    gap: 8,
+  },
+  itemAnomalia: {
+    padding: 12,
+    borderRadius: 12,
+    borderWidth: 1,
+  },
+  linhaTopoAnomalia: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 4,
+  },
+  nomeCategoriaAnomalia: {
+    fontSize: 14,
+    fontWeight: '700',
+  },
+  badgeAumento: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 8,
+    gap: 2,
+  },
+  textoBadgeAumento: {
+    fontSize: 11,
+    fontWeight: '800',
+  },
+  textoDetalheAnomalia: {
+    fontSize: 12,
+    lineHeight: 17,
   },
   cardComprometimento: {
     marginHorizontal: 16,

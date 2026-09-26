@@ -100,4 +100,79 @@ describe('StatementParser - Processamento de Extratos OFX e CSV', () => {
     const itensCsv = StatementParser.parse(SAMPLE_CSV_SEMICOLON, 'extrato_itau.csv');
     assert.strictEqual(itensCsv.length, 3);
   });
+
+  it('deve identificar presets dos principais bancos brasileiros (Nubank, Inter, Itaú, Bradesco, BB, Caixa, C6)', () => {
+    // Nubank via nome e conteúdo
+    const bNu1 = StatementParser.detectarBanco('date,category,title,amount\n2026-09-01,comida,ifood,55.00', 'fatura.csv');
+    assert.strictEqual(bNu1.id, 'nubank');
+    assert.strictEqual(bNu1.nome, 'Nubank');
+
+    // Banco Inter via OFX ORG
+    const bInter = StatementParser.detectarBanco('<OFX><ORG>Banco Inter S.A.</ORG></OFX>', 'extrato.ofx');
+    assert.strictEqual(bInter.id, 'inter');
+
+    // Itaú via FID
+    const bItau = StatementParser.detectarBanco('<OFX><FID>341</FID></OFX>', 'arquivo.ofx');
+    assert.strictEqual(bItau.id, 'itau');
+
+    // Bradesco via colunas de débito e crédito
+    const bBradesco = StatementParser.detectarBanco('Data;Historico;Credito;Debito\n15/09/2026;PIX;;50,00', 'extrato.csv');
+    assert.strictEqual(bBradesco.id, 'bradesco');
+
+    // Banco do Brasil via nome do arquivo
+    const bBB = StatementParser.detectarBanco('Data,Historico,Valor\n10/09/2026,PIX,-30.00', 'bb_extrato_09.csv');
+    assert.strictEqual(bBB.id, 'bb');
+
+    // Caixa Econômica via FID
+    const bCaixa = StatementParser.detectarBanco('<OFX><FID>104</FID></OFX>', 'mov.ofx');
+    assert.strictEqual(bCaixa.id, 'caixa');
+
+    // C6 Bank via nome
+    const bC6 = StatementParser.detectarBanco('data,valor,descricao\n2026-09-01,-20,Uber', 'c6_extrato.csv');
+    assert.strictEqual(bC6.id, 'c6');
+
+    // Fallback genérico
+    const bGenerico = StatementParser.detectarBanco('data,valor,descricao\n2026-09-01,-20,Uber', 'extrato_qualquer.csv');
+    assert.strictEqual(bGenerico.id, 'generico');
+  });
+
+  it('deve processar extrato de cartão Nubank onde amount positivo representa despesa', () => {
+    const csvNubankCartao = `date,category,title,amount
+2026-09-10,transporte,Uber,24.90
+2026-09-12,restaurante,iFood,68.50
+2026-09-15,outros,Pagamento de fatura,-500.00
+`;
+    const resultado = StatementParser.parseComDiagnostico(csvNubankCartao, 'nubank_cartao.csv');
+    assert.strictEqual(resultado.banco.id, 'nubank');
+    assert.strictEqual(resultado.formato, 'CSV');
+    assert.strictEqual(resultado.itens.length, 3);
+
+    // Compra no cartão (amount 24.90) deve ser despesa
+    assert.strictEqual(resultado.itens[0].descricao, 'Uber');
+    assert.strictEqual(resultado.itens[0].valor, 24.9);
+    assert.strictEqual(resultado.itens[0].tipo, 'despesa');
+
+    // Pagamento de fatura (amount -500.00) deve ser receita/crédito
+    assert.strictEqual(resultado.itens[2].descricao, 'Pagamento de fatura');
+    assert.strictEqual(resultado.itens[2].valor, 500);
+    assert.strictEqual(resultado.itens[2].tipo, 'receita');
+  });
+
+  it('deve processar extrato Bradesco com colunas separadas de Débito e Crédito', () => {
+    const csvBradesco = `Data;Historico;Docto;Credito;Debito;Saldo
+14/09/2026;TRANSFERENCIA PIX RECEBIDA;12345;850,00;;1850,00
+15/09/2026;PAGAMENTO CONTA ENERGIA;67890;;120,40;1729,60
+`;
+    const resultado = StatementParser.parseComDiagnostico(csvBradesco, 'extrato_bradesco.csv');
+    assert.strictEqual(resultado.banco.id, 'bradesco');
+    assert.strictEqual(resultado.itens.length, 2);
+
+    assert.strictEqual(resultado.itens[0].descricao, 'TRANSFERENCIA PIX RECEBIDA');
+    assert.strictEqual(resultado.itens[0].valor, 850);
+    assert.strictEqual(resultado.itens[0].tipo, 'receita');
+
+    assert.strictEqual(resultado.itens[1].descricao, 'PAGAMENTO CONTA ENERGIA');
+    assert.strictEqual(resultado.itens[1].valor, 120.4);
+    assert.strictEqual(resultado.itens[1].tipo, 'despesa');
+  });
 });
