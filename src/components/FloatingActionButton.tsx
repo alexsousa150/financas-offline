@@ -1,5 +1,5 @@
 import React from 'react';
-import { TouchableOpacity, StyleSheet, View, Text } from 'react-native';
+import { TouchableOpacity, StyleSheet, Text } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '../context/ThemeContext';
 
@@ -24,7 +24,7 @@ export const FloatingActionButton: React.FC<FloatingActionButtonProps> = ({ onPr
       ]}
       onPress={onPress}
     >
-      <Ionicons name="add" size={26} color="#FFFFFF" />
+      <Ionicons name="add" size={24} color="#FFFFFF" />
       {rotulo && <Text style={styles.textoRotulo}>{rotulo}</Text>}
     </TouchableOpacity>
   );
@@ -33,31 +33,31 @@ export const FloatingActionButton: React.FC<FloatingActionButtonProps> = ({ onPr
 const styles = StyleSheet.create({
   fab: {
     position: 'absolute',
-    bottom: 80,
-    right: 20,
-    elevation: 8,
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.35,
-    shadowRadius: 6,
+    bottom: 76,
+    right: 18,
+    elevation: 6,
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.3,
+    shadowRadius: 5,
     zIndex: 999,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
   },
   fabCircular: {
-    width: 60,
-    height: 60,
-    borderRadius: 30,
+    width: 56,
+    height: 56,
+    borderRadius: 28,
   },
   fabComRotulo: {
-    height: 52,
-    paddingHorizontal: 20,
-    borderRadius: 26,
+    height: 48,
+    paddingHorizontal: 18,
+    borderRadius: 24,
   },
   textoRotulo: {
     color: '#FFFFFF',
     fontWeight: '700',
     fontSize: 15,
-    marginLeft: 6,
+    marginLeft: 4,
   },
 });

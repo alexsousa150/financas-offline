@@ -95,6 +95,8 @@ export const MainLayout: React.FC = () => {
             onNavegarParaHistorico={() => navegarPara('historico')}
             onNavegarParaAnalise={() => navegarPara('analise')}
             onNavegarParaImportacao={() => navegarPara('extrato')}
+            onNavegarParaCategorias={() => navegarPara('categorias')}
+            onNavegarParaAjustes={() => navegarPara('ajustes')}
           />
         )}
         {telaAtiva === 'historico' && <HistoryScreen />}
@@ -197,46 +199,6 @@ export const MainLayout: React.FC = () => {
             ]}
           >
             Extrato
-          </Text>
-        </TouchableOpacity>
-
-        <TouchableOpacity
-          style={styles.tabItem}
-          onPress={() => navegarPara('categorias')}
-          activeOpacity={0.7}
-        >
-          <Ionicons
-            name={telaAtiva === 'categorias' ? 'grid' : 'grid-outline'}
-            size={22}
-            color={telaAtiva === 'categorias' ? theme.tabBarActive : theme.tabBarInactive}
-          />
-          <Text
-            style={[
-              styles.tabLabel,
-              { color: telaAtiva === 'categorias' ? theme.tabBarActive : theme.tabBarInactive },
-            ]}
-          >
-            Categorias
-          </Text>
-        </TouchableOpacity>
-
-        <TouchableOpacity
-          style={styles.tabItem}
-          onPress={() => navegarPara('ajustes')}
-          activeOpacity={0.7}
-        >
-          <Ionicons
-            name={telaAtiva === 'ajustes' ? 'settings' : 'settings-outline'}
-            size={22}
-            color={telaAtiva === 'ajustes' ? theme.tabBarActive : theme.tabBarInactive}
-          />
-          <Text
-            style={[
-              styles.tabLabel,
-              { color: telaAtiva === 'ajustes' ? theme.tabBarActive : theme.tabBarInactive },
-            ]}
-          >
-            Ajustes
           </Text>
         </TouchableOpacity>
       </View>

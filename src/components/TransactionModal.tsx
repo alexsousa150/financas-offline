@@ -286,7 +286,10 @@ export const TransactionModal: React.FC<TransactionModalProps> = ({
         style={styles.overlay}
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
       >
-        <View style={[styles.conteudo, { backgroundColor: theme.card, borderColor: theme.cardBorder }]}>
+        <View style={[styles.conteudo, { backgroundColor: theme.card }]}>
+          {/* Indicador de arraste */}
+          <View style={styles.dragHandle} />
+
           {/* Cabeçalho */}
           <View style={styles.cabecalho}>
             <Text style={[styles.titulo, { color: theme.text }]}>
@@ -297,7 +300,7 @@ export const TransactionModal: React.FC<TransactionModalProps> = ({
                 : 'Novo lançamento'}
             </Text>
             <TouchableOpacity onPress={onFechar} style={styles.botaoFechar}>
-              <Ionicons name="close" size={24} color={theme.textMuted} />
+              <Ionicons name="close" size={22} color={theme.textMuted} />
             </TouchableOpacity>
           </View>
 
@@ -822,15 +825,29 @@ export const TransactionModal: React.FC<TransactionModalProps> = ({
 const styles = StyleSheet.create({
   overlay: {
     flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.65)',
+    backgroundColor: 'rgba(0,0,0,0.55)',
     justifyContent: 'flex-end',
   },
   conteudo: {
-    borderTopLeftRadius: 26,
-    borderTopRightRadius: 26,
-    borderWidth: 1,
-    padding: 20,
-    maxHeight: '92%',
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    paddingHorizontal: 20,
+    paddingBottom: 20,
+    maxHeight: '93%',
+    elevation: 24,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: -6 },
+    shadowOpacity: 0.25,
+    shadowRadius: 16,
+  },
+  dragHandle: {
+    width: 36,
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: 'rgba(150,150,150,0.35)',
+    alignSelf: 'center',
+    marginTop: 10,
+    marginBottom: 8,
   },
   cabecalho: {
     flexDirection: 'row',
@@ -839,8 +856,8 @@ const styles = StyleSheet.create({
     marginBottom: 12,
   },
   titulo: {
-    fontSize: 18,
-    fontWeight: '800',
+    fontSize: 17,
+    fontWeight: '700',
   },
   botaoFechar: {
     padding: 4,
