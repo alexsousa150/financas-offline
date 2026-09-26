@@ -1,10 +1,8 @@
-import React, { Suspense, useEffect } from 'react';
-import { View, ActivityIndicator, Text, StyleSheet, Platform, StatusBar } from 'react-native';
+import React, { Suspense } from 'react';
+import { View, ActivityIndicator, Text, StyleSheet, StatusBar } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { SQLiteProvider } from 'expo-sqlite';
-import { Stack, useRouter } from 'expo-router';
-import * as QuickActions from 'expo-quick-actions';
-import { useQuickActionCallback } from 'expo-quick-actions/hooks';
+import { Stack } from 'expo-router';
 import { DATABASE_NAME, inicializarBanco } from '../database/db';
 import { ThemeProvider, useTheme } from '../context/ThemeContext';
 import { AppProvider, useApp } from '../context/AppContext';
@@ -30,7 +28,6 @@ function RootProvidersAndModals() {
     modalTransacaoTipoInicial,
     transacaoParaEdicao,
     transacaoParaDuplicacao,
-    abrirModalNovoLancamento,
     fecharModalTransacao,
     modalCategoriaAberto,
     categoriaParaEdicao,
@@ -41,39 +38,6 @@ function RootProvidersAndModals() {
     autenticado,
     setAutenticado,
   } = useApp();
-
-  // Configura atalhos rápidos do ícone do aplicativo (App Shortcuts)
-  useEffect(() => {
-    try {
-      QuickActions.setItems([
-        {
-          id: 'nova_despesa',
-          title: 'Nova despesa',
-          subtitle: 'Registrar gasto',
-          icon: Platform.OS === 'ios' ? 'symbol:minus.circle' : undefined,
-          params: { action: 'nova_despesa' },
-        },
-        {
-          id: 'nova_receita',
-          title: 'Nova receita',
-          subtitle: 'Registrar entrada',
-          icon: Platform.OS === 'ios' ? 'symbol:plus.circle' : undefined,
-          params: { action: 'nova_receita' },
-        },
-      ]);
-    } catch (e) {
-      console.warn('Erro ao configurar atalhos do aplicativo:', e);
-    }
-  }, []);
-
-  // Ouve quando o usuário clica em um atalho ao segurar o ícone do app
-  useQuickActionCallback((action) => {
-    if (action?.params?.action === 'nova_despesa') {
-      abrirModalNovoLancamento('despesa');
-    } else if (action?.params?.action === 'nova_receita') {
-      abrirModalNovoLancamento('receita');
-    }
-  });
 
   return (
     <>

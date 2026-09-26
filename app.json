@@ -35,7 +35,6 @@
           "color": "#10B981"
         }
       ],
-      "expo-quick-actions",
       "expo-router",
       "expo-status-bar"
     ],
