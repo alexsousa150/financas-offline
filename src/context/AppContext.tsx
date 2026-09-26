@@ -1,4 +1,5 @@
-import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
+import { AppState, AppStateStatus } from 'react-native';
 import { useSQLiteContext } from 'expo-sqlite';
 import { CategoriesRepository } from '../database/categoriesRepo';
 import { TransactionsRepository } from '../database/transactionsRepo';
@@ -166,6 +167,34 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       }
     })();
   }, [settingsRepo]);
+
+  // Re-bloqueio biométrico ao voltar do background (Ciclo de vida do App)
+  const backgroundTimestampRef = useRef<number | null>(null);
+  const biometriaHabilitadaRef = useRef(biometriaHabilitada);
+  useEffect(() => {
+    biometriaHabilitadaRef.current = biometriaHabilitada;
+  }, [biometriaHabilitada]);
+
+  useEffect(() => {
+    const subscription = AppState.addEventListener('change', (nextAppState: AppStateStatus) => {
+      if (nextAppState === 'background' || nextAppState === 'inactive') {
+        backgroundTimestampRef.current = Date.now();
+      } else if (nextAppState === 'active') {
+        if (backgroundTimestampRef.current && biometriaHabilitadaRef.current) {
+          const tempoForaMs = Date.now() - backgroundTimestampRef.current;
+          // Se ficou fora por mais de 1 segundo, força re-autenticação biométrica
+          if (tempoForaMs > 1000) {
+            setAutenticado(false);
+          }
+        }
+        backgroundTimestampRef.current = null;
+      }
+    });
+
+    return () => {
+      subscription.remove();
+    };
+  }, []);
 
   const alternarModoPrivacidade = async () => {
     AppHaptics.toqueSelecao();

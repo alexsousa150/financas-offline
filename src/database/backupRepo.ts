@@ -2,7 +2,7 @@ import { SQLiteDatabase } from 'expo-sqlite';
 import * as FileSystem from 'expo-file-system/legacy';
 import * as Sharing from 'expo-sharing';
 import { BackupData, Categoria, Transacao, LancamentoRecorrente, Favorito } from '../types';
-import { formatarDataBr } from '../utils/formatters';
+import { formatarDataBr, getIntervaloMes } from '../utils/formatters';
 
 export interface StatusBackupInfo {
   precisaBackup: boolean;
@@ -97,8 +97,9 @@ export class BackupRepository {
     `;
     const params: any[] = [];
     if (mesAno) {
-      sql += ` WHERE strftime('%Y-%m', t.data) = ?`;
-      params.push(mesAno);
+      const { inicio, fimExclusivo } = getIntervaloMes(mesAno);
+      sql += ` WHERE t.data >= ? AND t.data < ?`;
+      params.push(inicio, fimExclusivo);
     }
     sql += ` ORDER BY t.data DESC;`;
 
@@ -231,6 +232,50 @@ export class BackupRepository {
       throw new Error('Formato de backup inválido.');
     }
 
+    // 1. Gera backup automático de segurança antes de restaurar para prevenir perda de dados
+    try {
+      const transacoesAtuais = await this.db.getFirstAsync<{ count: number }>(
+        'SELECT COUNT(*) as count FROM transacoes;'
+      );
+      if (transacoesAtuais && transacoesAtuais.count > 0) {
+        const categoriasAtuais = await this.db.getAllAsync<Categoria>(
+          'SELECT id, nome, icone, cor, ordem, limite_mensal, tipo_gasto FROM categorias;'
+        );
+        const transacoesLista = await this.db.getAllAsync<Transacao>(
+          'SELECT * FROM transacoes;'
+        );
+        const recorrentesLista = await this.db.getAllAsync<LancamentoRecorrente>(
+          'SELECT * FROM lancamentos_recorrentes;'
+        );
+        const favoritosLista = await this.db.getAllAsync<Favorito>(
+          'SELECT * FROM favoritos;'
+        );
+
+        const snapshotSeguranca: BackupData = {
+          versao: 1,
+          exportadoEm: new Date().toISOString(),
+          categorias: categoriasAtuais,
+          transacoes: transacoesLista,
+          recorrentes: recorrentesLista,
+          favoritos: favoritosLista,
+        };
+
+        const jsonSeguranca = JSON.stringify(snapshotSeguranca);
+        const caminhoSeguranca = `${FileSystem.documentDirectory}backup_seguranca_pre_restauracao.json`;
+        await FileSystem.writeAsStringAsync(caminhoSeguranca, jsonSeguranca, {
+          encoding: FileSystem.EncodingType.UTF8,
+        });
+
+        await this.db.runAsync(
+          'INSERT OR REPLACE INTO configuracoes (chave, valor) VALUES (?, ?);',
+          'ultimo_backup_seguranca_pre_restauracao',
+          jsonSeguranca
+        );
+      }
+    } catch (e) {
+      console.warn('Não foi possível gerar backup automático de segurança pré-restauração:', e);
+    }
+
     let categoriasCount = 0;
     let transacoesCount = 0;
     let recorrentesCount = 0;
@@ -338,5 +383,84 @@ export class BackupRepository {
       recorrentesRestaurados: recorrentesCount,
       favoritosRestaurados: favoritosCount,
     };
+  }
+
+  /**
+   * Permite reverter a última restauração caso o usuário tenha restaurado por engano
+   */
+  async desfazerUltimaRestauracao(): Promise<boolean> {
+    try {
+      const config = await this.db.getFirstAsync<{ valor: string }>(
+        "SELECT valor FROM configuracoes WHERE chave = 'ultimo_backup_seguranca_pre_restauracao';"
+      );
+      let dados: BackupData | null = null;
+      if (config && config.valor) {
+        dados = JSON.parse(config.valor);
+      } else {
+        const caminho = `${FileSystem.documentDirectory}backup_seguranca_pre_restauracao.json`;
+        const info = await FileSystem.getInfoAsync(caminho);
+        if (info.exists) {
+          const conteudo = await FileSystem.readAsStringAsync(caminho);
+          dados = JSON.parse(conteudo);
+        }
+      }
+
+      if (!dados || !dados.transacoes) return false;
+
+      await this.db.withTransactionAsync(async () => {
+        await this.db.runAsync('DELETE FROM transacoes;');
+        await this.db.runAsync('DELETE FROM categorias;');
+        await this.db.runAsync('DELETE FROM lancamentos_recorrentes;');
+        await this.db.runAsync('DELETE FROM favoritos;');
+
+        for (const cat of dados!.categorias) {
+          await this.db.runAsync(
+            `INSERT INTO categorias (id, nome, icone, cor, ordem, limite_mensal, tipo_gasto) 
+             VALUES (?, ?, ?, ?, ?, ?, ?);`,
+            cat.id, cat.nome, cat.icone, cat.cor, cat.ordem ?? 0, cat.limite_mensal ?? null, cat.tipo_gasto || 'essencial'
+          );
+        }
+
+        for (const tr of dados!.transacoes) {
+          await this.db.runAsync(
+            `INSERT INTO transacoes (id, valor, tipo, categoria_id, data, descricao, conciliado, origem, pago, parcela_atual, total_parcelas, grupo_parcelamento_id, created_at)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);`,
+            tr.id, tr.valor, tr.tipo, tr.categoria_id, tr.data, tr.descricao || '', tr.conciliado ? 1 : 0, tr.origem || 'manual', tr.pago !== undefined ? (tr.pago ? 1 : 0) : 1, tr.parcela_atual ?? null, tr.total_parcelas ?? null, tr.grupo_parcelamento_id ?? null, tr.created_at || new Date().toISOString()
+          );
+        }
+
+        if (dados!.recorrentes && Array.isArray(dados!.recorrentes)) {
+          for (const rec of dados!.recorrentes) {
+            await this.db.runAsync(
+              `INSERT INTO lancamentos_recorrentes (id, valor, tipo, categoria_id, descricao, dia_vencimento, ativo, ultimo_mes_gerado)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?);`,
+              rec.id, rec.valor, rec.tipo, rec.categoria_id, rec.descricao || '', rec.dia_vencimento, rec.ativo !== undefined ? (rec.ativo ? 1 : 0) : 1, rec.ultimo_mes_gerado ?? null
+            );
+          }
+        }
+
+        if (dados!.favoritos && Array.isArray(dados!.favoritos)) {
+          for (const fav of dados!.favoritos) {
+            await this.db.runAsync(
+              `INSERT INTO favoritos (id, titulo, valor, tipo, categoria_id, icone)
+               VALUES (?, ?, ?, ?, ?, ?);`,
+              fav.id, fav.titulo, fav.valor, fav.tipo || 'despesa', fav.categoria_id, fav.icone ?? null
+            );
+          }
+        }
+      });
+
+      return true;
+    } catch (e) {
+      console.error('Erro ao desfazer restauração:', e);
+      return false;
+    }
+  }
+
+  async temBackupSegurancaPreRestauracao(): Promise<boolean> {
+    const config = await this.db.getFirstAsync<{ valor: string }>(
+      "SELECT valor FROM configuracoes WHERE chave = 'ultimo_backup_seguranca_pre_restauracao';"
+    );
+    return !!(config && config.valor);
   }
 }

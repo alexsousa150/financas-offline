@@ -22,8 +22,8 @@ export const BiometricLockScreen: React.FC<BiometricLockScreenProps> = ({ onAute
       const hasHardware = await LocalAuthentication.hasHardwareAsync();
       const isEnrolled = await LocalAuthentication.isEnrolledAsync();
 
-      if (!hasHardware || !isEnrolled) {
-        // Se o aparelho não tem digital cadastrada, libera o acesso
+      if (!hasHardware && !isEnrolled) {
+        // Dispositivo sem hardware biométrico nem bloqueio
         onAutenticado();
         return;
       }

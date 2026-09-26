@@ -147,6 +147,8 @@ export async function inicializarBanco(db: SQLiteDatabase): Promise<void> {
     CREATE INDEX IF NOT EXISTS idx_transacoes_tipo ON transacoes(tipo);
     CREATE INDEX IF NOT EXISTS idx_transacoes_grupo ON transacoes(grupo_parcelamento_id);
     CREATE INDEX IF NOT EXISTS idx_transacoes_pago ON transacoes(pago);
+    CREATE INDEX IF NOT EXISTS idx_transacoes_data_tipo ON transacoes(data, tipo);
+    CREATE INDEX IF NOT EXISTS idx_transacoes_data_pago ON transacoes(data, pago);
   `);
 
   // 5. Verifica se categorias padrão já existem, se não, semeia

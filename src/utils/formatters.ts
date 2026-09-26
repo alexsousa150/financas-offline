@@ -103,6 +103,36 @@ export function getMesPosterior(mesAnoIso: string): string {
   return `${ano}-${String(mes).padStart(2, '0')}`;
 }
 
+/**
+ * Retorna intervalo de datas [inicio, fimExclusivo] para consultas indexadas de mês (YYYY-MM).
+ * Ex: '2026-09' -> { inicio: '2026-09-01', fimExclusivo: '2026-10-01' }
+ */
+export function getIntervaloMes(mesAnoIso: string): { inicio: string; fimExclusivo: string } {
+  const [anoStr, mesStr] = mesAnoIso.split('-');
+  let ano = parseInt(anoStr, 10);
+  let mes = parseInt(mesStr, 10);
+  const inicio = `${ano}-${String(mes).padStart(2, '0')}-01`;
+
+  mes += 1;
+  if (mes > 12) {
+    mes = 1;
+    ano += 1;
+  }
+  const fimExclusivo = `${ano}-${String(mes).padStart(2, '0')}-01`;
+  return { inicio, fimExclusivo };
+}
+
+/**
+ * Retorna intervalo de datas [inicio, fimExclusivo] para consultas indexadas de ano inteiro.
+ * Ex: 2026 -> { inicio: '2026-01-01', fimExclusivo: '2027-01-01' }
+ */
+export function getIntervaloAno(ano: number): { inicio: string; fimExclusivo: string } {
+  return {
+    inicio: `${ano}-01-01`,
+    fimExclusivo: `${ano + 1}-01-01`,
+  };
+}
+
 export function formatarVariacao(variacao: number | null | undefined): {
   texto: string;
   tipo: 'aumento' | 'queda' | 'neutro';

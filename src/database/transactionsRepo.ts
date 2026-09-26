@@ -8,7 +8,7 @@ import {
   TetoDiarioInfo,
   AnaliseEssencialVsEstilo,
 } from '../types';
-import { getMesAnterior, getNomeMesAno, getMesPosterior } from '../utils/formatters';
+import { getMesAnterior, getNomeMesAno, getIntervaloMes, getIntervaloAno } from '../utils/formatters';
 
 export interface FiltrosTransacao {
   mesAno?: string; // Formato YYYY-MM
@@ -49,8 +49,9 @@ export class TransactionsRepository {
     const params: any[] = [];
 
     if (filtros.mesAno) {
-      sql += ` AND strftime('%Y-%m', t.data) = ?`;
-      params.push(filtros.mesAno);
+      const { inicio, fimExclusivo } = getIntervaloMes(filtros.mesAno);
+      sql += ` AND t.data >= ? AND t.data < ?`;
+      params.push(inicio, fimExclusivo);
     }
 
     if (filtros.tipo) {
@@ -323,50 +324,46 @@ export class TransactionsRepository {
   }
 
   /**
-   * Resumo Financeiro Completo com visão dupla: Saldo Realizado (em conta hoje) vs Saldo Previsto (fim do mês)
+   * Resumo Financeiro Completo com visão dupla: Saldo Realizado (em conta hoje) vs Saldo Previsto (fim do mês).
+   * Otimizado em 1 única query atômica com CASE WHEN e index scan em 'data'.
    */
   async obterResumoMes(mesAno: string): Promise<ResumoFinanceiro> {
-    // 1. Totais Gerais do Mês (Previsto total)
-    const recPrev = await this.db.getFirstAsync<{ total: number | null }>(
-      `SELECT SUM(valor) as total FROM transacoes WHERE strftime('%Y-%m', data) = ? AND tipo = 'receita';`,
-      mesAno
-    );
-    const despPrev = await this.db.getFirstAsync<{ total: number | null }>(
-      `SELECT SUM(valor) as total FROM transacoes WHERE strftime('%Y-%m', data) = ? AND tipo = 'despesa';`,
-      mesAno
+    const { inicio, fimExclusivo } = getIntervaloMes(mesAno);
+
+    const consolidado = await this.db.getFirstAsync<{
+      receitas: number | null;
+      despesas: number | null;
+      receitasRealizadas: number | null;
+      despesasRealizadas: number | null;
+      receitasPendentes: number | null;
+      despesasPendentes: number | null;
+      contasPendentesQtd: number | null;
+    }>(
+      `SELECT 
+         SUM(CASE WHEN tipo = 'receita' THEN valor ELSE 0 END) as receitas,
+         SUM(CASE WHEN tipo = 'despesa' THEN valor ELSE 0 END) as despesas,
+         SUM(CASE WHEN tipo = 'receita' AND pago = 1 THEN valor ELSE 0 END) as receitasRealizadas,
+         SUM(CASE WHEN tipo = 'despesa' AND pago = 1 THEN valor ELSE 0 END) as despesasRealizadas,
+         SUM(CASE WHEN tipo = 'receita' AND pago = 0 THEN valor ELSE 0 END) as receitasPendentes,
+         SUM(CASE WHEN tipo = 'despesa' AND pago = 0 THEN valor ELSE 0 END) as despesasPendentes,
+         COUNT(CASE WHEN tipo = 'despesa' AND pago = 0 THEN 1 END) as contasPendentesQtd
+       FROM transacoes 
+       WHERE data >= ? AND data < ?;`,
+      inicio,
+      fimExclusivo
     );
 
-    // 2. Totais Realizados (apenas pago = 1)
-    const recReal = await this.db.getFirstAsync<{ total: number | null }>(
-      `SELECT SUM(valor) as total FROM transacoes WHERE strftime('%Y-%m', data) = ? AND tipo = 'receita' AND pago = 1;`,
-      mesAno
-    );
-    const despReal = await this.db.getFirstAsync<{ total: number | null }>(
-      `SELECT SUM(valor) as total FROM transacoes WHERE strftime('%Y-%m', data) = ? AND tipo = 'despesa' AND pago = 1;`,
-      mesAno
-    );
-
-    // 3. Pendências do Mês (pago = 0)
-    const despPend = await this.db.getFirstAsync<{ total: number | null; qtd: number }>(
-      `SELECT SUM(valor) as total, COUNT(*) as qtd FROM transacoes WHERE strftime('%Y-%m', data) = ? AND tipo = 'despesa' AND pago = 0;`,
-      mesAno
-    );
-    const recPend = await this.db.getFirstAsync<{ total: number | null }>(
-      `SELECT SUM(valor) as total FROM transacoes WHERE strftime('%Y-%m', data) = ? AND tipo = 'receita' AND pago = 0;`,
-      mesAno
-    );
-
-    const receitas = Math.round((recPrev?.total || 0) * 100) / 100;
-    const despesas = Math.round((despPrev?.total || 0) * 100) / 100;
+    const receitas = Math.round((consolidado?.receitas || 0) * 100) / 100;
+    const despesas = Math.round((consolidado?.despesas || 0) * 100) / 100;
     const saldo = Math.round((receitas - despesas) * 100) / 100;
 
-    const receitasRealizadas = Math.round((recReal?.total || 0) * 100) / 100;
-    const despesasRealizadas = Math.round((despReal?.total || 0) * 100) / 100;
+    const receitasRealizadas = Math.round((consolidado?.receitasRealizadas || 0) * 100) / 100;
+    const despesasRealizadas = Math.round((consolidado?.despesasRealizadas || 0) * 100) / 100;
     const saldoRealizado = Math.round((receitasRealizadas - despesasRealizadas) * 100) / 100;
 
-    const despesasPendentes = Math.round((despPend?.total || 0) * 100) / 100;
-    const contasPendentesQtd = despPend?.qtd || 0;
-    const receitasPendentes = Math.round((recPend?.total || 0) * 100) / 100;
+    const despesasPendentes = Math.round((consolidado?.despesasPendentes || 0) * 100) / 100;
+    const contasPendentesQtd = consolidado?.contasPendentesQtd || 0;
+    const receitasPendentes = Math.round((consolidado?.receitasPendentes || 0) * 100) / 100;
 
     return {
       receitas,
@@ -383,7 +380,8 @@ export class TransactionsRepository {
   }
 
   /**
-   * Resumo Anual consolidado para visão macro e evolução patrimonial
+   * Resumo Anual consolidado para visão macro e evolução patrimonial.
+   * Otimizado em 1 única query indexada por intervalo de datas.
    */
   async obterResumoAno(ano: number): Promise<{
     receitas: number;
@@ -392,22 +390,25 @@ export class TransactionsRepository {
     taxaEconomia: number;
     mesesComDados: number;
   }> {
-    const anoStr = String(ano);
-    const rec = await this.db.getFirstAsync<{ total: number | null }>(
-      `SELECT SUM(valor) as total FROM transacoes WHERE strftime('%Y', data) = ? AND tipo = 'receita' AND pago = 1;`,
-      anoStr
-    );
-    const desp = await this.db.getFirstAsync<{ total: number | null }>(
-      `SELECT SUM(valor) as total FROM transacoes WHERE strftime('%Y', data) = ? AND tipo = 'despesa' AND pago = 1;`,
-      anoStr
-    );
-    const meses = await this.db.getFirstAsync<{ qtd: number }>(
-      `SELECT COUNT(DISTINCT strftime('%Y-%m', data)) as qtd FROM transacoes WHERE strftime('%Y', data) = ?;`,
-      anoStr
+    const { inicio, fimExclusivo } = getIntervaloAno(ano);
+
+    const consolidado = await this.db.getFirstAsync<{
+      receitas: number | null;
+      despesas: number | null;
+      meses: number | null;
+    }>(
+      `SELECT 
+         SUM(CASE WHEN tipo = 'receita' AND pago = 1 THEN valor ELSE 0 END) as receitas,
+         SUM(CASE WHEN tipo = 'despesa' AND pago = 1 THEN valor ELSE 0 END) as despesas,
+         COUNT(DISTINCT substr(data, 1, 7)) as meses
+       FROM transacoes 
+       WHERE data >= ? AND data < ?;`,
+      inicio,
+      fimExclusivo
     );
 
-    const receitas = Math.round((rec?.total || 0) * 100) / 100;
-    const despesas = Math.round((desp?.total || 0) * 100) / 100;
+    const receitas = Math.round((consolidado?.receitas || 0) * 100) / 100;
+    const despesas = Math.round((consolidado?.despesas || 0) * 100) / 100;
     const saldo = Math.round((receitas - despesas) * 100) / 100;
     const taxaEconomia = receitas > 0 ? ((receitas - despesas) / receitas) * 100 : 0;
 
@@ -416,7 +417,7 @@ export class TransactionsRepository {
       despesas,
       saldo,
       taxaEconomia: Math.round(taxaEconomia * 10) / 10,
-      mesesComDados: meses?.qtd || 0,
+      mesesComDados: consolidado?.meses || 0,
     };
   }
 
@@ -425,10 +426,13 @@ export class TransactionsRepository {
    */
   async obterRankingCategorias(mesAno: string, tipo: TipoTransacao = 'despesa'): Promise<RankingCategoria[]> {
     const mesAnterior = getMesAnterior(mesAno);
+    const { inicio: inicioAtual, fimExclusivo: fimAtual } = getIntervaloMes(mesAno);
+    const { inicio: inicioAnt, fimExclusivo: fimAnt } = getIntervaloMes(mesAnterior);
 
     const totalPeriodoResult = await this.db.getFirstAsync<{ total: number | null }>(
-      `SELECT SUM(valor) as total FROM transacoes WHERE strftime('%Y-%m', data) = ? AND tipo = ?;`,
-      mesAno,
+      `SELECT SUM(valor) as total FROM transacoes WHERE data >= ? AND data < ? AND tipo = ?;`,
+      inicioAtual,
+      fimAtual,
       tipo
     );
     const totalPeriodo = totalPeriodoResult?.total || 0;
@@ -452,10 +456,11 @@ export class TransactionsRepository {
          SUM(t.valor) as total
        FROM transacoes t
        INNER JOIN categorias c ON t.categoria_id = c.id
-       WHERE strftime('%Y-%m', t.data) = ? AND t.tipo = ?
+       WHERE t.data >= ? AND t.data < ? AND t.tipo = ?
        GROUP BY c.id
        ORDER BY total DESC;`,
-      mesAno,
+      inicioAtual,
+      fimAtual,
       tipo
     );
 
@@ -467,9 +472,10 @@ export class TransactionsRepository {
          categoria_id,
          SUM(valor) as total
        FROM transacoes
-       WHERE strftime('%Y-%m', data) = ? AND tipo = ?
+       WHERE data >= ? AND data < ? AND tipo = ?
        GROUP BY categoria_id;`,
-      mesAnterior,
+      inicioAnt,
+      fimAnt,
       tipo
     );
 
@@ -517,15 +523,18 @@ export class TransactionsRepository {
    * Diagnóstico Financeiro: Essencial vs Estilo de Vida (Regra 50/30/20)
    */
   async obterAnaliseEssencialVsEstilo(mesAno: string): Promise<AnaliseEssencialVsEstilo> {
+    const { inicio, fimExclusivo } = getIntervaloMes(mesAno);
+
     const linhas = await this.db.getAllAsync<{ tipo_gasto: string; total: number }>(
       `SELECT 
          COALESCE(c.tipo_gasto, 'essencial') as tipo_gasto,
          SUM(t.valor) as total
        FROM transacoes t
        INNER JOIN categorias c ON t.categoria_id = c.id
-       WHERE strftime('%Y-%m', t.data) = ? AND t.tipo = 'despesa'
+       WHERE t.data >= ? AND t.data < ? AND t.tipo = 'despesa'
        GROUP BY c.tipo_gasto;`,
-      mesAno
+      inicio,
+      fimExclusivo
     );
 
     let totalEssencial = 0;
@@ -576,16 +585,18 @@ export class TransactionsRepository {
       }
 
       const mesAnoIso = `${a}-${String(m).padStart(2, '0')}`;
+      const { inicio: inicioMesFuturo, fimExclusivo: fimMesFuturo } = getIntervaloMes(mesAnoIso);
 
       // Busca parcelas já registradas para aquele mês
       const parcelasResult = await this.db.getFirstAsync<{ total: number | null; qtd: number }>(
         `SELECT SUM(valor) as total, COUNT(*) as qtd 
          FROM transacoes 
-         WHERE strftime('%Y-%m', data) = ? 
+         WHERE data >= ? AND data < ? 
            AND tipo = 'despesa' 
            AND total_parcelas IS NOT NULL 
            AND total_parcelas > 1;`,
-        mesAnoIso
+        inicioMesFuturo,
+        fimMesFuturo
       );
 
       const totalParcelas = Math.round((parcelasResult?.total || 0) * 100) / 100;

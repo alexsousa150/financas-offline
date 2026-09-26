@@ -128,7 +128,7 @@ export class RecurringRepository {
         // Verifica se por acaso já existe transação idêntica neste dia para não duplicar
         const existente = await this.db.getFirstAsync<{ id: number }>(
           `SELECT id FROM transacoes 
-           WHERE strftime('%Y-%m-%d', data) = ? 
+           WHERE data = ? 
              AND categoria_id = ? 
              AND ABS(valor - ?) < 0.01 
              AND descricao = ?;`,
