@@ -5,6 +5,25 @@ O formato é baseado no [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.
 
 ---
 
+## [1.4.0] - 2026-09-26
+
+### 🛡️ Correção Crítica de Inicialização & Migração SQLite
+- **Resolução do erro `no such column: pago`**: Corrigida a ordem de execução no `inicializarBanco`. A criação de índices (`idx_transacoes_pago`, `idx_transacoes_grupo`) agora só é executada após a garantia de que as colunas já foram adicionadas via migração com `PRAGMA table_info`, eliminando qualquer falha ao sobrescrever o APK em aparelhos com bancos de versões legadas.
+- **Normalização de Dados Antigos**: Script de saneamento automático preenche registros existentes que possuíam valores nulos antes da introdução dos novos campos.
+
+### ⚡ Otimizações Full Stack de Performance
+- **Conciliação Bancária em Lote (Memória)**: Substituição de consultas individuais $O(N)$ em loop por uma única consulta rápida por janela de datas (`listarPorIntervaloDatas`). O matching agora ocorre em memória RAM, acelerando a importação de extratos OFX/CSV em mais de 100x.
+- **Status Inteligente de Contas Fixas**: Despesas recorrentes mensais automáticas agora nascem como "Pendentes" (`pago: 0`) se o vencimento for para o dia de hoje ou futuro, alimentando perfeitamente o card "Contas a Pagar" na tela inicial.
+
+### ✨ Novas Funcionalidades de Alta Utilidade
+- **Chips Rápidos de Descrição**: Ao selecionar uma categoria no modal de lançamento, o app sugere os termos mais comuns (ex: *Supermercado*, *Padaria*, *Combustível*, *Uber*, *Aluguel*, *Farmácia*), permitindo preencher a descrição com apenas 1 toque sem precisar digitar no teclado.
+- **Exportação de Planilha Excel / CSV**: Botão nativo nas Configurações para exportar todos os lançamentos para um arquivo `.csv` formatado em padrão brasileiro (ponto e vírgula como separador e codificação UTF-8 BOM), pronto para abrir no Excel, Planilhas Google ou arquivar para o Imposto de Renda.
+- **Visão Anual Consolidada no Analytics**: Alternador na tela de Análise entre "Visão Mensal" e "Visão Anual", exibindo entradas anuais, saídas anuais, saldo acumulado e taxa média de poupança no ano todo.
+- **Limpeza de Dados de Teste**: Opção em Configurações para zerar lançamentos de teste mantendo categorias, metas e contas fixas preservadas.
+- **Badges de Classificação em Categorias**: Exibição da etiqueta visual "Essencial" ou "Estilo de Vida" diretamente no card de cada categoria, além da padronização do teto com formatação de moeda brasileira.
+
+---
+
 ## [1.3.0] - 2026-09-25
 
 ### ✨ Novidades

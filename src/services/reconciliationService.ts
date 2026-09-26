@@ -17,18 +17,39 @@ export class ReconciliationService {
     categorias: Categoria[],
     diasTolerancia: number = 3
   ): Promise<TransacaoExtratoPendente[]> {
+    if (itensBrutos.length === 0) return [];
+
     const pendentes: TransacaoExtratoPendente[] = [];
+
+    // Otimização Full Stack: busca todas as transações da janela do extrato em UMA única query rápida
+    const datas = itensBrutos.map((i) => i.data).filter(Boolean).sort();
+    const dataMinima = datas[0];
+    const dataMaxima = datas[datas.length - 1];
+
+    let transacoesExistentes: any[] = [];
+    if (dataMinima && dataMaxima) {
+      const minDateObj = new Date(dataMinima);
+      minDateObj.setDate(minDateObj.getDate() - (diasTolerancia + 1));
+      const minIso = minDateObj.toISOString().split('T')[0];
+
+      const maxDateObj = new Date(dataMaxima);
+      maxDateObj.setDate(maxDateObj.getDate() + (diasTolerancia + 1));
+      const maxIso = maxDateObj.toISOString().split('T')[0];
+
+      transacoesExistentes = await this.transactionsRepo.listarPorIntervaloDatas(minIso, maxIso);
+    }
 
     for (let i = 0; i < itensBrutos.length; i++) {
       const item = itensBrutos[i];
 
-      // Busca no banco se já existe transação compatível
-      const correspondente = await this.transactionsRepo.buscarCorrespondenteConciliacao(
-        item.data,
-        item.valor,
-        item.tipo,
-        diasTolerancia
-      );
+      // Cruzamento na memória com tolerância de valor e data
+      const correspondente = transacoesExistentes.find((t) => {
+        if (t.tipo !== item.tipo) return false;
+        if (Math.abs(t.valor - item.valor) >= 0.05) return false;
+        const diffMs = Math.abs(new Date(t.data).getTime() - new Date(item.data).getTime());
+        const diffDias = diffMs / (1000 * 60 * 60 * 24);
+        return diffDias <= diasTolerancia;
+      });
 
       // Sugere categoria por inteligência de palavras-chave
       const categoriaSugeridaId = sugerirCategoriaPorDescricao(
@@ -37,7 +58,7 @@ export class ReconciliationService {
         item.tipo
       );
 
-      const jaConciliado = correspondente !== null;
+      const jaConciliado = !!correspondente;
 
       pendentes.push({
         idTemp: `temp_${Date.now()}_${i}`,
@@ -48,7 +69,6 @@ export class ReconciliationService {
         categoria_id_sugerida: categoriaSugeridaId,
         jaConciliado,
         transacaoCorrespondenteId: correspondente ? correspondente.id : undefined,
-        // Por padrão, se já bateu com o banco, desmarca para não duplicar. Se for novo, marca para importar.
         selecionadoParaImportar: !jaConciliado,
       });
     }

@@ -76,7 +76,56 @@ export async function inicializarBanco(db: SQLiteDatabase): Promise<void> {
       ativo INTEGER DEFAULT 1,
       ultimo_mes_gerado TEXT
     );
+  `);
 
+  // 1. Migrações seguras de colunas em 'categorias' para bancos já existentes
+  try {
+    const colunasCategorias = await db.getAllAsync<{ name: string }>('PRAGMA table_info(categorias);');
+    const nomesCategorias = new Set(colunasCategorias.map((c) => c.name.toLowerCase()));
+
+    if (!nomesCategorias.has('limite_mensal')) {
+      await db.execAsync(`ALTER TABLE categorias ADD COLUMN limite_mensal REAL DEFAULT NULL;`);
+    }
+    if (!nomesCategorias.has('tipo_gasto')) {
+      await db.execAsync(`ALTER TABLE categorias ADD COLUMN tipo_gasto TEXT DEFAULT 'essencial';`);
+    }
+  } catch (e) {
+    console.warn('Erro ao verificar/migrar colunas de categorias:', e);
+  }
+
+  // 2. Migrações seguras de colunas em 'transacoes' para bancos já existentes (ANTES dos índices!)
+  try {
+    const colunasTransacoes = await db.getAllAsync<{ name: string }>('PRAGMA table_info(transacoes);');
+    const nomesTransacoes = new Set(colunasTransacoes.map((c) => c.name.toLowerCase()));
+
+    if (!nomesTransacoes.has('pago')) {
+      await db.execAsync(`ALTER TABLE transacoes ADD COLUMN pago INTEGER DEFAULT 1;`);
+    }
+    if (!nomesTransacoes.has('parcela_atual')) {
+      await db.execAsync(`ALTER TABLE transacoes ADD COLUMN parcela_atual INTEGER DEFAULT NULL;`);
+    }
+    if (!nomesTransacoes.has('total_parcelas')) {
+      await db.execAsync(`ALTER TABLE transacoes ADD COLUMN total_parcelas INTEGER DEFAULT NULL;`);
+    }
+    if (!nomesTransacoes.has('grupo_parcelamento_id')) {
+      await db.execAsync(`ALTER TABLE transacoes ADD COLUMN grupo_parcelamento_id TEXT DEFAULT NULL;`);
+    }
+  } catch (e) {
+    console.warn('Erro ao verificar/migrar colunas de transações:', e);
+  }
+
+  // 3. Normalização de dados legados (preenche NULLs caso existam)
+  try {
+    await db.execAsync(`
+      UPDATE transacoes SET pago = 1 WHERE pago IS NULL;
+      UPDATE categorias SET tipo_gasto = 'essencial' WHERE tipo_gasto IS NULL;
+    `);
+  } catch (e) {
+    // Ignora se der erro
+  }
+
+  // 4. Criação de índices SOMENTE AGORA (todas as colunas têm garantia absoluta de existência)
+  await db.execAsync(`
     CREATE INDEX IF NOT EXISTS idx_transacoes_data ON transacoes(data);
     CREATE INDEX IF NOT EXISTS idx_transacoes_categoria ON transacoes(categoria_id);
     CREATE INDEX IF NOT EXISTS idx_transacoes_tipo ON transacoes(tipo);
@@ -84,44 +133,7 @@ export async function inicializarBanco(db: SQLiteDatabase): Promise<void> {
     CREATE INDEX IF NOT EXISTS idx_transacoes_pago ON transacoes(pago);
   `);
 
-  // Migrações seguras caso o banco já tenha sido criado antes destas colunas existirem
-  try {
-    await db.execAsync(`ALTER TABLE categorias ADD COLUMN limite_mensal REAL DEFAULT NULL;`);
-  } catch (e) {
-    // Coluna já existe
-  }
-
-  try {
-    await db.execAsync(`ALTER TABLE categorias ADD COLUMN tipo_gasto TEXT DEFAULT 'essencial';`);
-  } catch (e) {
-    // Coluna já existe
-  }
-
-  try {
-    await db.execAsync(`ALTER TABLE transacoes ADD COLUMN pago INTEGER DEFAULT 1;`);
-  } catch (e) {
-    // Coluna já existe
-  }
-
-  try {
-    await db.execAsync(`ALTER TABLE transacoes ADD COLUMN parcela_atual INTEGER DEFAULT NULL;`);
-  } catch (e) {
-    // Coluna já existe
-  }
-
-  try {
-    await db.execAsync(`ALTER TABLE transacoes ADD COLUMN total_parcelas INTEGER DEFAULT NULL;`);
-  } catch (e) {
-    // Coluna já existe
-  }
-
-  try {
-    await db.execAsync(`ALTER TABLE transacoes ADD COLUMN grupo_parcelamento_id TEXT DEFAULT NULL;`);
-  } catch (e) {
-    // Coluna já existe
-  }
-
-  // Verifica se categorias padrão já existem, se não, semeia
+  // 5. Verifica se categorias padrão já existem, se não, semeia
   const categoriasContagem = await db.getFirstAsync<{ count: number }>(
     'SELECT COUNT(*) as count FROM categorias;'
   );

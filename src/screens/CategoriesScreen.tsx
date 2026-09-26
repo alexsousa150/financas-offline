@@ -13,6 +13,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '../context/ThemeContext';
 import { useApp } from '../context/AppContext';
 import { Categoria } from '../types';
+import { formatarMoeda } from '../utils/formatters';
 
 export const CategoriesScreen: React.FC = () => {
   const { theme } = useTheme();
@@ -98,14 +99,38 @@ export const CategoriesScreen: React.FC = () => {
               </View>
 
               <View style={styles.detalhes}>
-                <Text style={[styles.nomeCategoria, { color: theme.text }]}>{item.nome}</Text>
+                <View style={styles.linhaNomeBadge}>
+                  <Text style={[styles.nomeCategoria, { color: theme.text }]}>{item.nome}</Text>
+                  <View
+                    style={[
+                      styles.badgeTipoGasto,
+                      {
+                        backgroundColor:
+                          item.tipo_gasto === 'estilo_de_vida' ? theme.warningLight : theme.successLight,
+                      },
+                    ]}
+                  >
+                    <Text
+                      style={[
+                        styles.textoBadgeTipoGasto,
+                        {
+                          color:
+                            item.tipo_gasto === 'estilo_de_vida' ? theme.warning : theme.success,
+                        },
+                      ]}
+                    >
+                      {item.tipo_gasto === 'estilo_de_vida' ? 'Estilo de Vida' : 'Essencial'}
+                    </Text>
+                  </View>
+                </View>
+
                 <View style={styles.linhaInfoCategoria}>
                   <Text style={[styles.contagemLctos, { color: theme.textSecondary }]}>
                     {item.contagemTransacoes || 0} lançamentos
                   </Text>
                   {item.limite_mensal && item.limite_mensal > 0 ? (
                     <Text style={[styles.tagLimite, { color: theme.primary }]}>
-                      • Teto: {item.limite_mensal.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+                      • Teto: {formatarMoeda(item.limite_mensal)}
                     </Text>
                   ) : null}
                 </View>
@@ -258,8 +283,23 @@ const styles = StyleSheet.create({
   detalhes: {
     flex: 1,
   },
+  linhaNomeBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    flexWrap: 'wrap',
+  },
   nomeCategoria: {
     fontSize: 15,
+    fontWeight: '700',
+  },
+  badgeTipoGasto: {
+    paddingHorizontal: 7,
+    paddingVertical: 2,
+    borderRadius: 6,
+  },
+  textoBadgeTipoGasto: {
+    fontSize: 10,
     fontWeight: '700',
   },
   contagemLctos: {

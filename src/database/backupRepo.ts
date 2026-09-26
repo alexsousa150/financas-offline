@@ -2,6 +2,7 @@ import { SQLiteDatabase } from 'expo-sqlite';
 import * as FileSystem from 'expo-file-system/legacy';
 import * as Sharing from 'expo-sharing';
 import { BackupData, Categoria, Transacao, LancamentoRecorrente } from '../types';
+import { formatarDataBr } from '../utils/formatters';
 
 export class BackupRepository {
   constructor(private db: SQLiteDatabase) {}
@@ -55,6 +56,77 @@ export class BackupRepository {
         mimeType: 'application/json',
         dialogTitle: 'Salvar ou Compartilhar Backup das Finanças',
         UTI: 'public.json',
+      });
+    }
+
+    return caminhoArquivo;
+  }
+
+  /**
+   * Exporta relatório em planilha Excel / CSV (compatível com Excel, Planilhas Google e Imposto de Renda)
+   */
+  async exportarPlanilhaCsv(mesAno?: string): Promise<string> {
+    let sql = `
+      SELECT 
+        t.data,
+        t.tipo,
+        c.nome as categoria_nome,
+        t.descricao,
+        t.valor,
+        t.pago,
+        t.parcela_atual,
+        t.total_parcelas
+      FROM transacoes t
+      INNER JOIN categorias c ON t.categoria_id = c.id
+    `;
+    const params: any[] = [];
+    if (mesAno) {
+      sql += ` WHERE strftime('%Y-%m', t.data) = ?`;
+      params.push(mesAno);
+    }
+    sql += ` ORDER BY t.data DESC;`;
+
+    const linhas = await this.db.getAllAsync<{
+      data: string;
+      tipo: string;
+      categoria_nome: string;
+      descricao: string;
+      valor: number;
+      pago: number;
+      parcela_atual: number | null;
+      total_parcelas: number | null;
+    }>(sql, ...params);
+
+    const cabecalho = 'Data;Tipo;Categoria;Descrição;Valor (R$);Status;Parcelamento\n';
+    const corpo = linhas
+      .map((l) => {
+        const dataBr = formatarDataBr(l.data);
+        const tipoStr = l.tipo === 'receita' ? 'Receita' : 'Despesa';
+        const desc = (l.descricao || '').replace(/;/g, ',');
+        const valorFormatado = l.valor.toFixed(2).replace('.', ',');
+        const status = l.pago === 0 ? 'Pendente' : 'Pago';
+        const parcela = l.parcela_atual && l.total_parcelas ? `${l.parcela_atual}/${l.total_parcelas}` : 'À vista';
+        return `${dataBr};${tipoStr};${l.categoria_nome};${desc};${valorFormatado};${status};${parcela}`;
+      })
+      .join('\n');
+
+    // \uFEFF adiciona UTF-8 BOM para garantir acentuação correta no Excel brasileiro
+    const csvConteudo = '\uFEFF' + cabecalho + corpo;
+
+    const periodo = mesAno ? `_${mesAno}` : '_completo';
+    const nomeArquivo = `relatorio_financeiro${periodo}.csv`;
+    const caminhoArquivo = `${FileSystem.documentDirectory}${nomeArquivo}`;
+
+    await FileSystem.writeAsStringAsync(caminhoArquivo, csvConteudo, {
+      encoding: FileSystem.EncodingType.UTF8,
+    });
+
+    const isAvailable = await Sharing.isAvailableAsync();
+    if (isAvailable) {
+      await Sharing.shareAsync(caminhoArquivo, {
+        mimeType: 'text/csv',
+        dialogTitle: 'Compartilhar Planilha Excel / CSV',
+        UTI: 'public.comma-separated-values-text',
       });
     }
 

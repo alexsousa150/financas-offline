@@ -25,6 +25,7 @@ export const SettingsScreen: React.FC = () => {
   const {
     backupRepo,
     settingsRepo,
+    transactionsRepo,
     notificarMudancaDados,
     biometriaHabilitada,
     setBiometriaHabilitada,
@@ -32,6 +33,7 @@ export const SettingsScreen: React.FC = () => {
   } = useApp();
 
   const [exportando, setExportando] = useState(false);
+  const [exportandoCsv, setExportandoCsv] = useState(false);
   const [restaurando, setRestaurando] = useState(false);
   const [lembretesAtivos, setLembretesAtivos] = useState(true);
 
@@ -100,6 +102,43 @@ export const SettingsScreen: React.FC = () => {
     } finally {
       setExportando(false);
     }
+  };
+
+  const handleExportarCsv = async () => {
+    try {
+      AppHaptics.toqueLeve();
+      setExportandoCsv(true);
+      await backupRepo.exportarPlanilhaCsv();
+      AppHaptics.toqueSucesso();
+    } catch (e: any) {
+      Alert.alert('Erro ao Exportar', 'Não foi possível gerar a planilha CSV.');
+    } finally {
+      setExportandoCsv(false);
+    }
+  };
+
+  const handleLimparHistorico = () => {
+    Alert.alert(
+      'Limpar Histórico de Lançamentos?',
+      'Esta ação apagará todas as despesas e receitas cadastradas (útil para limpar dados de teste). Suas categorias e contas fixas serão preservadas.',
+      [
+        { text: 'Cancelar', style: 'cancel' },
+        {
+          text: 'Sim, Limpar Lançamentos',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              await transactionsRepo.limparHistorico();
+              await notificarMudancaDados();
+              AppHaptics.toqueSucesso();
+              Alert.alert('Sucesso', 'Histórico de lançamentos limpo com sucesso.');
+            } catch (e) {
+              Alert.alert('Erro', 'Não foi possível limpar os lançamentos.');
+            }
+          },
+        },
+      ]
+    );
   };
 
   const handleRestaurar = async () => {
@@ -260,6 +299,33 @@ export const SettingsScreen: React.FC = () => {
               </Text>
             </>
           )}
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          style={[styles.botaoAcaoSecundario, { backgroundColor: theme.inputBg, borderColor: theme.inputBorder, marginTop: 10 }]}
+          onPress={handleExportarCsv}
+          disabled={exportandoCsv}
+        >
+          {exportandoCsv ? (
+            <ActivityIndicator color={theme.text} />
+          ) : (
+            <>
+              <Ionicons name="document-text-outline" size={20} color={theme.primary} style={{ marginRight: 8 }} />
+              <Text style={[styles.textoBotaoAcaoSecundario, { color: theme.text }]}>
+                Exportar Planilha Excel / CSV
+              </Text>
+            </>
+          )}
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          style={[styles.botaoAcaoSecundario, { backgroundColor: theme.dangerLight, borderColor: theme.danger, marginTop: 10 }]}
+          onPress={handleLimparHistorico}
+        >
+          <Ionicons name="trash-outline" size={18} color={theme.danger} style={{ marginRight: 8 }} />
+          <Text style={[styles.textoBotaoAcaoSecundario, { color: theme.danger }]}>
+            Limpar Lançamentos de Teste
+          </Text>
         </TouchableOpacity>
       </View>
 

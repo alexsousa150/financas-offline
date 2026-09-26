@@ -30,6 +30,17 @@ import { NotificationService } from '../services/notificationService';
 const OPCOES_PARCELAS = [2, 3, 4, 5, 6, 8, 10, 12, 18, 24];
 const DIAS_RAPIDOS = [1, 5, 10, 12, 15, 20, 25, 28, 30];
 
+const SUGESTOES_DESCRICAO_PADRAO: Record<string, string[]> = {
+  alimentação: ['Supermercado', 'Padaria', 'Almoço', 'iFood / Delivery', 'Feira / Açougue', 'Lanche'],
+  transporte: ['Combustível', 'Uber / 99', 'Estacionamento', 'Pedágio', 'Oficina', 'Passagem'],
+  moradia: ['Aluguel', 'Condomínio', 'Energia Elétrica', 'Água', 'Internet', 'Gás', 'Mercado'],
+  saúde: ['Farmácia', 'Consulta Médica', 'Dentista', 'Exames', 'Remédios'],
+  lazer: ['Cinema', 'Restaurante / Bar', 'Viagem', 'Passeio', 'Streaming'],
+  salário: ['Salário', 'Adiantamento', 'Renda Extra', 'Pix Recebido', 'Freelance'],
+  renda: ['Salário', 'Adiantamento', 'Renda Extra', 'Pix Recebido', 'Freelance'],
+  outros: ['Pix', 'Transferência', 'Compra Diversa', 'Presente'],
+};
+
 interface TransactionModalProps {
   visivel: boolean;
   transacaoParaEdicao?: Transacao | null;
@@ -174,6 +185,18 @@ export const TransactionModal: React.FC<TransactionModalProps> = ({
 
   const valorNumerico = converterCentavosParaValor(valorTextoCentavos);
   const valorParcelaCalculado = isParcelado && numeroParcelas > 0 ? valorNumerico / numeroParcelas : valorNumerico;
+
+  const categoriaEscolhida = categorias.find((c) => c.id === categoriaId);
+  const sugestoesRapidas = React.useMemo(() => {
+    if (!categoriaEscolhida) return ['Compra', 'Pagamento', 'Pix'];
+    const nomeNorm = categoriaEscolhida.nome.toLowerCase().trim();
+    for (const [chave, lista] of Object.entries(SUGESTOES_DESCRICAO_PADRAO)) {
+      if (nomeNorm.includes(chave) || chave.includes(nomeNorm)) {
+        return lista;
+      }
+    }
+    return ['Compra', 'Pagamento', 'Pix', 'Serviço'];
+  }, [categoriaEscolhida]);
 
   const handleSalvar = async () => {
     if (valorNumerico <= 0) {
@@ -625,6 +648,44 @@ export const TransactionModal: React.FC<TransactionModalProps> = ({
             <Text style={[styles.labelSecao, { color: theme.textSecondary, marginTop: 14 }]}>
               Descrição (Opcional)
             </Text>
+
+            {sugestoesRapidas.length > 0 && (
+              <ScrollView
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                contentContainerStyle={styles.scrollSugestoesDescricao}
+              >
+                {sugestoesRapidas.map((sug) => {
+                  const ativa = descricao === sug;
+                  return (
+                    <TouchableOpacity
+                      key={sug}
+                      onPress={() => {
+                        AppHaptics.toqueLeve();
+                        setDescricao(sug);
+                      }}
+                      style={[
+                        styles.chipSugestaoDescricao,
+                        {
+                          backgroundColor: ativa ? theme.primaryLight : theme.inputBg,
+                          borderColor: ativa ? theme.primary : theme.inputBorder,
+                        },
+                      ]}
+                    >
+                      <Text
+                        style={[
+                          styles.textoChipSugestaoDescricao,
+                          { color: ativa ? theme.primary : theme.textSecondary },
+                        ]}
+                      >
+                        {sug}
+                      </Text>
+                    </TouchableOpacity>
+                  );
+                })}
+              </ScrollView>
+            )}
+
             <TextInput
               style={[
                 styles.inputDescricao,
@@ -934,6 +995,22 @@ const styles = StyleSheet.create({
     paddingHorizontal: 10,
     fontSize: 13,
     fontWeight: '700',
+  },
+  scrollSugestoesDescricao: {
+    flexDirection: 'row',
+    gap: 6,
+    paddingVertical: 4,
+    marginTop: 2,
+  },
+  chipSugestaoDescricao: {
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 8,
+    borderWidth: 1,
+  },
+  textoChipSugestaoDescricao: {
+    fontSize: 12,
+    fontWeight: '600',
   },
   inputDescricao: {
     height: 48,

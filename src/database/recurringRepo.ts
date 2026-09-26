@@ -1,6 +1,7 @@
 import { SQLiteDatabase } from 'expo-sqlite';
 import { TipoTransacao } from '../types';
 import { NotificationService } from '../services/notificationService';
+import { getDataHojeIso } from '../utils/formatters';
 
 export interface LancamentoRecorrente {
   id: number;
@@ -100,16 +101,21 @@ export class RecurringRepository {
         );
 
         if (!existente) {
+          const hojeIso = getDataHojeIso();
+          // Se a data do lançamento for hoje ou futura, nasce pendente (0) para controle de pagamento
+          const statusPago = dataIso < hojeIso ? 1 : 0;
+
           await this.db.runAsync(
-            `INSERT INTO transacoes (valor, tipo, categoria_id, data, descricao, conciliado, origem)
-             VALUES (?, ?, ?, ?, ?, ?, ?);`,
+            `INSERT INTO transacoes (valor, tipo, categoria_id, data, descricao, conciliado, origem, pago)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?);`,
             rec.valor,
             rec.tipo,
             rec.categoria_id,
             dataIso,
             rec.descricao || (rec.tipo === 'receita' ? 'Renda Fixa' : 'Conta Fixa'),
             0,
-            'manual'
+            'manual',
+            statusPago
           );
 
           // Agenda notificação de lembrete se for para hoje ou futuro

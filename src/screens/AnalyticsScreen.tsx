@@ -29,14 +29,28 @@ export const AnalyticsScreen: React.FC = () => {
   } = useApp();
 
   const [atualizando, setAtualizando] = useState(false);
+  const [modoPeriodo, setModoPeriodo] = useState<'mes' | 'ano'>('mes');
   const [comprometimentoFuturo, setComprometimentoFuturo] = useState<ComprometimentoFuturo[]>([]);
+  const [resumoAno, setResumoAno] = useState<{
+    receitas: number;
+    despesas: number;
+    saldo: number;
+    taxaEconomia: number;
+    mesesComDados: number;
+  } | null>(null);
+
+  const anoSelecionado = parseInt(mesSelecionado.split('-')[0], 10);
 
   const carregarDadosExtras = async () => {
     try {
-      const futuro = await transactionsRepo.obterComprometimentoFuturo(6);
+      const [futuro, anoRes] = await Promise.all([
+        transactionsRepo.obterComprometimentoFuturo(6),
+        transactionsRepo.obterResumoAno(anoSelecionado),
+      ]);
       setComprometimentoFuturo(futuro);
+      setResumoAno(anoRes);
     } catch (e) {
-      console.error('Erro ao carregar comprometimento futuro:', e);
+      console.error('Erro ao carregar dados extras:', e);
     }
   };
 
@@ -73,8 +87,116 @@ export const AnalyticsScreen: React.FC = () => {
       showsVerticalScrollIndicator={false}
       refreshControl={<RefreshControl refreshing={atualizando} onRefresh={onRefresh} tintColor={theme.primary} />}
     >
-      {/* Seletor de Mês */}
-      <MonthSelector mesAno={mesSelecionado} onMesChange={setMesSelecionado} />
+      {/* Alternador de Visão: Mês vs Ano */}
+      <View style={[styles.containerTogglePeriodo, { backgroundColor: theme.inputBg }]}>
+        <TouchableOpacity
+          onPress={() => setModoPeriodo('mes')}
+          style={[
+            styles.botaoTogglePeriodo,
+            modoPeriodo === 'mes' && { backgroundColor: theme.primary },
+          ]}
+        >
+          <Ionicons
+            name="calendar-outline"
+            size={14}
+            color={modoPeriodo === 'mes' ? '#FFFFFF' : theme.textSecondary}
+          />
+          <Text
+            style={[
+              styles.textoTogglePeriodo,
+              { color: modoPeriodo === 'mes' ? '#FFFFFF' : theme.textSecondary },
+            ]}
+          >
+            Visão Mensal
+          </Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          onPress={() => setModoPeriodo('ano')}
+          style={[
+            styles.botaoTogglePeriodo,
+            modoPeriodo === 'ano' && { backgroundColor: theme.primary },
+          ]}
+        >
+          <Ionicons
+            name="trending-up-outline"
+            size={14}
+            color={modoPeriodo === 'ano' ? '#FFFFFF' : theme.textSecondary}
+          />
+          <Text
+            style={[
+              styles.textoTogglePeriodo,
+              { color: modoPeriodo === 'ano' ? '#FFFFFF' : theme.textSecondary },
+            ]}
+          >
+            Visão Anual ({anoSelecionado})
+          </Text>
+        </TouchableOpacity>
+      </View>
+
+      {modoPeriodo === 'ano' && resumoAno && (
+        <View style={[styles.cardResumo, { backgroundColor: theme.card, borderColor: theme.cardBorder, marginBottom: 12 }]}>
+          <View style={styles.linhaResumoCabecalho}>
+            <Text style={[styles.tituloResumo, { color: theme.textSecondary }]}>
+              Balanço Acumulado de {anoSelecionado}
+            </Text>
+            <View
+              style={[
+                styles.badgeTaxa,
+                { backgroundColor: resumoAno.taxaEconomia >= 0 ? theme.successLight : theme.dangerLight },
+              ]}
+            >
+              <Ionicons
+                name={resumoAno.taxaEconomia >= 0 ? 'shield-checkmark' : 'alert-circle'}
+                size={13}
+                color={resumoAno.taxaEconomia >= 0 ? theme.success : theme.danger}
+              />
+              <Text
+                style={[
+                  styles.textoTaxa,
+                  { color: resumoAno.taxaEconomia >= 0 ? theme.success : theme.danger },
+                ]}
+              >
+                {resumoAno.taxaEconomia >= 0 ? `Poupança: ${resumoAno.taxaEconomia}%` : 'Déficit anual'}
+              </Text>
+            </View>
+          </View>
+
+          <Text
+            style={[
+              styles.saldoDestaque,
+              { color: resumoAno.saldo >= 0 ? theme.text : theme.danger },
+            ]}
+          >
+            {formatarMoeda(resumoAno.saldo)}
+          </Text>
+
+          <View style={styles.gridMetricas}>
+            <View style={[styles.itemMetrica, { backgroundColor: theme.inputBg }]}>
+              <Text style={[styles.rotuloMetrica, { color: theme.textSecondary }]}>Entradas no Ano</Text>
+              <Text style={[styles.valorMetrica, { color: theme.success }]}>
+                {formatarMoeda(resumoAno.receitas)}
+              </Text>
+            </View>
+
+            <View style={[styles.itemMetrica, { backgroundColor: theme.inputBg }]}>
+              <Text style={[styles.rotuloMetrica, { color: theme.textSecondary }]}>Saídas no Ano</Text>
+              <Text style={[styles.valorMetrica, { color: theme.danger }]}>
+                {formatarMoeda(resumoAno.despesas)}
+              </Text>
+            </View>
+          </View>
+
+          <Text style={[styles.dicaFinanceira, { color: theme.textSecondary, marginTop: 12 }]}>
+            📈 <Text style={{ fontWeight: '700' }}>Evolução de Longo Prazo:</Text> Você movimentou suas finanças em {resumoAno.mesesComDados} mês(es) de {anoSelecionado}.
+          </Text>
+        </View>
+      )}
+
+      {/* Seletor de Mês (apenas no modo mensal) */}
+      {modoPeriodo === 'mes' && (
+        <MonthSelector mesAno={mesSelecionado} onMesChange={setMesSelecionado} />
+      )}
 
       {/* Card Resumo do Período */}
       <View style={[styles.cardResumo, { backgroundColor: theme.card, borderColor: theme.cardBorder }]}>
@@ -360,6 +482,26 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     paddingBottom: 110,
+  },
+  containerTogglePeriodo: {
+    flexDirection: 'row',
+    marginHorizontal: 16,
+    marginBottom: 10,
+    borderRadius: 12,
+    padding: 3,
+  },
+  botaoTogglePeriodo: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 8,
+    borderRadius: 9,
+    gap: 6,
+  },
+  textoTogglePeriodo: {
+    fontSize: 13,
+    fontWeight: '700',
   },
   cardResumo: {
     marginHorizontal: 16,

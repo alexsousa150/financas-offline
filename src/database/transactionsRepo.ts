@@ -383,6 +383,44 @@ export class TransactionsRepository {
   }
 
   /**
+   * Resumo Anual consolidado para visão macro e evolução patrimonial
+   */
+  async obterResumoAno(ano: number): Promise<{
+    receitas: number;
+    despesas: number;
+    saldo: number;
+    taxaEconomia: number;
+    mesesComDados: number;
+  }> {
+    const anoStr = String(ano);
+    const rec = await this.db.getFirstAsync<{ total: number | null }>(
+      `SELECT SUM(valor) as total FROM transacoes WHERE strftime('%Y', data) = ? AND tipo = 'receita' AND pago = 1;`,
+      anoStr
+    );
+    const desp = await this.db.getFirstAsync<{ total: number | null }>(
+      `SELECT SUM(valor) as total FROM transacoes WHERE strftime('%Y', data) = ? AND tipo = 'despesa' AND pago = 1;`,
+      anoStr
+    );
+    const meses = await this.db.getFirstAsync<{ qtd: number }>(
+      `SELECT COUNT(DISTINCT strftime('%Y-%m', data)) as qtd FROM transacoes WHERE strftime('%Y', data) = ?;`,
+      anoStr
+    );
+
+    const receitas = Math.round((rec?.total || 0) * 100) / 100;
+    const despesas = Math.round((desp?.total || 0) * 100) / 100;
+    const saldo = Math.round((receitas - despesas) * 100) / 100;
+    const taxaEconomia = receitas > 0 ? ((receitas - despesas) / receitas) * 100 : 0;
+
+    return {
+      receitas,
+      despesas,
+      saldo,
+      taxaEconomia: Math.round(taxaEconomia * 10) / 10,
+      mesesComDados: meses?.qtd || 0,
+    };
+  }
+
+  /**
    * Ranking detalhado das categorias incluindo limites de gastos mensais e tipo de gasto
    */
   async obterRankingCategorias(mesAno: string, tipo: TipoTransacao = 'despesa'): Promise<RankingCategoria[]> {
@@ -638,5 +676,36 @@ export class TransactionsRepository {
       dataIso
     );
     return row || null;
+  }
+
+  /**
+   * Busca todas as transações em um intervalo de datas para conciliação otimizada em lote na memória
+   */
+  async listarPorIntervaloDatas(dataInicio: string, dataFim: string): Promise<Transacao[]> {
+    const sql = `
+      SELECT 
+        t.id,
+        t.valor,
+        t.tipo,
+        t.categoria_id,
+        t.data,
+        t.descricao,
+        t.conciliado,
+        t.origem,
+        t.pago,
+        c.nome as categoria_nome
+      FROM transacoes t
+      INNER JOIN categorias c ON t.categoria_id = c.id
+      WHERE t.data >= ? AND t.data <= ?
+      ORDER BY t.data ASC;
+    `;
+    return await this.db.getAllAsync<Transacao>(sql, dataInicio, dataFim);
+  }
+
+  /**
+   * Limpa o histórico de transações mantendo categorias e configurações intactas
+   */
+  async limparHistorico(): Promise<void> {
+    await this.db.runAsync('DELETE FROM transacoes;');
   }
 }
