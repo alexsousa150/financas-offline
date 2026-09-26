@@ -13,10 +13,10 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '../context/ThemeContext';
 import { useApp } from '../context/AppContext';
-import { Transacao, TipoTransacao } from '../types';
+import { Transacao, TipoTransacao, FormaPagamento } from '../types';
 import { TransactionItem } from '../components/TransactionItem';
 import { MonthSelector } from '../components/MonthSelector';
-import { formatarDataExtenso, formatarMoeda } from '../utils/formatters';
+import { formatarDataExtenso, formatarMoeda, somarMoeda, subtrairMoeda } from '../utils/formatters';
 
 interface GrupoDia {
   data: string;
@@ -38,8 +38,10 @@ export const HistoryScreen: React.FC = () => {
   } = useApp();
 
   const [busca, setBusca] = useState('');
+  const [buscaGlobal, setBuscaGlobal] = useState(false);
   const [tipoFiltro, setTipoFiltro] = useState<TipoTransacao | 'todos'>('todos');
   const [statusFiltro, setStatusFiltro] = useState<'todos' | 'pagos' | 'pendentes'>('todos');
+  const [formaPagamentoFiltro, setFormaPagamentoFiltro] = useState<FormaPagamento | 'todas'>('todas');
   const [categoriaFiltroId, setCategoriaFiltroId] = useState<number | 'todas'>('todas');
   const TAMANHO_PAGINA = 35;
   const [transacoes, setTransacoes] = useState<Transacao[]>([]);
@@ -53,10 +55,11 @@ export const HistoryScreen: React.FC = () => {
       setCarregando(true);
       setPagina(0);
       const lista = await transactionsRepo.listar({
-        mesAno: mesSelecionado,
+        mesAno: buscaGlobal && busca.trim() ? undefined : mesSelecionado,
         tipo: tipoFiltro === 'todos' ? undefined : tipoFiltro,
         pago: statusFiltro === 'todos' ? undefined : statusFiltro === 'pagos' ? 1 : 0,
         categoriaId: categoriaFiltroId === 'todas' ? undefined : categoriaFiltroId,
+        formaPagamento: formaPagamentoFiltro === 'todas' ? undefined : formaPagamentoFiltro,
         busca: busca.trim() || undefined,
         limite: TAMANHO_PAGINA,
         offset: 0,
@@ -68,7 +71,7 @@ export const HistoryScreen: React.FC = () => {
     } finally {
       setCarregando(false);
     }
-  }, [transactionsRepo, mesSelecionado, tipoFiltro, statusFiltro, categoriaFiltroId, busca]);
+  }, [transactionsRepo, mesSelecionado, tipoFiltro, statusFiltro, categoriaFiltroId, formaPagamentoFiltro, busca, buscaGlobal]);
 
   const carregarMaisTransacoes = async () => {
     if (!temMais || carregandoMais || carregando) return;
@@ -77,10 +80,11 @@ export const HistoryScreen: React.FC = () => {
       setCarregandoMais(true);
       const proximoOffset = (pagina + 1) * TAMANHO_PAGINA;
       const novas = await transactionsRepo.listar({
-        mesAno: mesSelecionado,
+        mesAno: buscaGlobal && busca.trim() ? undefined : mesSelecionado,
         tipo: tipoFiltro === 'todos' ? undefined : tipoFiltro,
         pago: statusFiltro === 'todos' ? undefined : statusFiltro === 'pagos' ? 1 : 0,
         categoriaId: categoriaFiltroId === 'todas' ? undefined : categoriaFiltroId,
+        formaPagamento: formaPagamentoFiltro === 'todas' ? undefined : formaPagamentoFiltro,
         busca: busca.trim() || undefined,
         limite: TAMANHO_PAGINA,
         offset: proximoOffset,
@@ -114,9 +118,9 @@ export const HistoryScreen: React.FC = () => {
       const item = mapa.get(chave)!;
       item.transacoes.push(t);
       if (t.tipo === 'receita') {
-        item.totalDia += t.valor;
+        item.totalDia = somarMoeda(item.totalDia, t.valor);
       } else {
-        item.totalDia -= t.valor;
+        item.totalDia = subtrairMoeda(item.totalDia, t.valor);
       }
     }
 
@@ -153,6 +157,61 @@ export const HistoryScreen: React.FC = () => {
           </TouchableOpacity>
         )}
       </View>
+
+      {/* Opções de Escopo de Busca (Apenas neste mês vs Todo o histórico) */}
+      {Boolean(busca.trim()) && (
+        <View style={styles.linhaBuscaGlobal}>
+          <TouchableOpacity
+            style={[
+              styles.chipBuscaGlobal,
+              {
+                backgroundColor: !buscaGlobal ? theme.chipActiveBg : theme.inputBg,
+                borderColor: !buscaGlobal ? theme.chipActiveBg : theme.inputBorder,
+              },
+            ]}
+            onPress={() => setBuscaGlobal(false)}
+          >
+            <Ionicons
+              name="calendar-outline"
+              size={13}
+              color={!buscaGlobal ? '#FFFFFF' : theme.textSecondary}
+            />
+            <Text
+              style={[
+                styles.textoBuscaGlobal,
+                { color: !buscaGlobal ? '#FFFFFF' : theme.textSecondary },
+              ]}
+            >
+              Mês atual
+            </Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={[
+              styles.chipBuscaGlobal,
+              {
+                backgroundColor: buscaGlobal ? theme.chipActiveBg : theme.inputBg,
+                borderColor: buscaGlobal ? theme.chipActiveBg : theme.inputBorder,
+              },
+            ]}
+            onPress={() => setBuscaGlobal(true)}
+          >
+            <Ionicons
+              name="globe-outline"
+              size={13}
+              color={buscaGlobal ? '#FFFFFF' : theme.textSecondary}
+            />
+            <Text
+              style={[
+                styles.textoBuscaGlobal,
+                { color: buscaGlobal ? '#FFFFFF' : theme.textSecondary },
+              ]}
+            >
+              Todo o histórico
+            </Text>
+          </TouchableOpacity>
+        </View>
+      )}
 
       {/* Filtros em Linha Horizontal */}
       <View style={styles.containerFiltros}>
@@ -266,6 +325,46 @@ export const HistoryScreen: React.FC = () => {
               Receitas
             </Text>
           </TouchableOpacity>
+
+          {/* Separador de Forma de Pagamento */}
+          <View style={styles.divisorVertical} />
+
+          <TouchableOpacity
+            onPress={() => setFormaPagamentoFiltro('todas')}
+            style={[
+              styles.chipFiltro,
+              {
+                backgroundColor: formaPagamentoFiltro === 'todas' ? theme.chipActiveBg : theme.inputBg,
+                borderColor: formaPagamentoFiltro === 'todas' ? theme.chipActiveBg : theme.inputBorder,
+              },
+            ]}
+          >
+            <Text style={[styles.textoChipFiltro, { color: formaPagamentoFiltro === 'todas' ? '#FFFFFF' : theme.text }]}>
+              Todos Meios
+            </Text>
+          </TouchableOpacity>
+
+          {(['pix', 'cartao_credito', 'cartao_debito', 'dinheiro'] as FormaPagamento[]).map((fp) => {
+            const label = fp === 'pix' ? 'Pix' : fp === 'cartao_credito' ? 'Crédito' : fp === 'cartao_debito' ? 'Débito' : 'Dinheiro';
+            const selecionado = formaPagamentoFiltro === fp;
+            return (
+              <TouchableOpacity
+                key={fp}
+                onPress={() => setFormaPagamentoFiltro(fp)}
+                style={[
+                  styles.chipFiltro,
+                  {
+                    backgroundColor: selecionado ? theme.primary : theme.inputBg,
+                    borderColor: selecionado ? theme.primary : theme.inputBorder,
+                  },
+                ]}
+              >
+                <Text style={[styles.textoChipFiltro, { color: selecionado ? '#FFFFFF' : theme.text }]}>
+                  {label}
+                </Text>
+              </TouchableOpacity>
+            );
+          })}
 
           {/* Separador de categoria */}
           <View style={styles.divisorVertical} />
@@ -411,6 +510,26 @@ const styles = StyleSheet.create({
   },
   botaoLimparBusca: {
     padding: 4,
+  },
+  linhaBuscaGlobal: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginHorizontal: 16,
+    marginBottom: 8,
+  },
+  chipBuscaGlobal: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 8,
+    borderWidth: 1,
+    gap: 6,
+  },
+  textoBuscaGlobal: {
+    fontSize: 12,
+    fontWeight: '700',
   },
   containerFiltros: {
     marginBottom: 8,

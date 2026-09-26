@@ -1,5 +1,4 @@
 import { SQLiteDatabase } from 'expo-sqlite';
-import { Categoria, TipoTransacao } from '../types';
 
 export class LearningRepository {
   constructor(private db: SQLiteDatabase) {}
@@ -46,13 +45,22 @@ export class LearningRepository {
    * Limpa a descrição para gerar uma assinatura mais estável do estabelecimento.
    * Ex: "COMPRA NO CARTAO FINAL 1234 UBER *TRIP" -> "uber trip"
    */
-  private limparDescricao(descricao: string): string {
+  limparDescricao(descricao: string): string {
     return descricao
       .toLowerCase()
       .replace(/compra no cartao final \d+/g, '')
+      .replace(/compra com cartao/g, '')
+      .replace(/compra aprovada/g, '')
       .replace(/pagamento efetuado/g, '')
+      .replace(/pagamento de boleto/g, '')
+      .replace(/pagto boleto/g, '')
       .replace(/pix enviado/g, '')
       .replace(/pix recebido/g, '')
+      .replace(/ted recebida/g, '')
+      .replace(/ted enviada/g, '')
+      .replace(/doc enviado/g, '')
+      .replace(/debito automatico/g, '')
+      .replace(/estorno de/g, '')
       .replace(/[^a-z0-9 ]/g, ' ') // Remove caracteres especiais
       .replace(/\s+/g, ' ') // Remove espaços múltiplos
       .trim();

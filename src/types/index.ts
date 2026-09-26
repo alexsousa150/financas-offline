@@ -2,7 +2,9 @@ export type TipoTransacao = 'receita' | 'despesa';
 
 export type OrigemTransacao = 'manual' | 'importado';
 
-export type TipoGasto = 'essencial' | 'estilo_de_vida';
+export type TipoGasto = 'essencial' | 'estilo_de_vida' | 'poupanca';
+
+export type FormaPagamento = 'pix' | 'cartao_credito' | 'cartao_debito' | 'dinheiro' | 'outro';
 
 export interface Categoria {
   id: number;
@@ -11,7 +13,7 @@ export interface Categoria {
   cor: string;
   ordem?: number;
   limite_mensal?: number | null; // Teto de orçamento mensal opcional (em R$)
-  tipo_gasto?: TipoGasto; // 'essencial' (básico/sobrevivência) ou 'estilo_de_vida' (supérfluo/lazer)
+  tipo_gasto?: TipoGasto; // 'essencial' (50%), 'estilo_de_vida' (30%) ou 'poupanca' (20%)
   totalGasto?: number; // Para relatórios e rankings
   contagemTransacoes?: number;
 }
@@ -29,6 +31,7 @@ export interface Transacao {
   parcela_atual?: number | null; // Ex: 1 (de 1/3)
   total_parcelas?: number | null; // Ex: 3
   grupo_parcelamento_id?: string | null; // UUID ou ID comum para identificar o grupo da compra parcelada
+  forma_pagamento?: FormaPagamento;
   created_at?: string;
   // Campos populados via JOIN
   categoria_nome?: string;
@@ -103,8 +106,10 @@ export interface TetoDiarioInfo {
 export interface AnaliseEssencialVsEstilo {
   totalEssencial: number;
   totalEstiloDeVida: number;
+  totalPoupanca: number;
   percentualEssencial: number;
   percentualEstiloDeVida: number;
+  percentualPoupanca: number;
 }
 
 export interface LancamentoRecorrente {

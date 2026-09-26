@@ -7,8 +7,17 @@ import {
   ComprometimentoFuturo,
   TetoDiarioInfo,
   AnaliseEssencialVsEstilo,
+  FormaPagamento,
 } from '../types';
-import { getMesAnterior, getNomeMesAno, getIntervaloMes, getIntervaloAno } from '../utils/formatters';
+import {
+  getMesAnterior,
+  getNomeMesAno,
+  getIntervaloMes,
+  getIntervaloAno,
+  subtrairMoeda,
+  reaisParaCentavos,
+  centavosParaReais,
+} from '../utils/formatters';
 
 export interface FiltrosTransacao {
   mesAno?: string; // Formato YYYY-MM
@@ -18,6 +27,7 @@ export interface FiltrosTransacao {
   busca?: string;
   limite?: number;
   offset?: number;
+  formaPagamento?: FormaPagamento;
 }
 
 export class TransactionsRepository {
@@ -38,6 +48,7 @@ export class TransactionsRepository {
         t.parcela_atual,
         t.total_parcelas,
         t.grupo_parcelamento_id,
+        t.forma_pagamento,
         t.created_at,
         c.nome as categoria_nome,
         c.icone as categoria_icone,
@@ -76,6 +87,11 @@ export class TransactionsRepository {
       params.push(termo, termo);
     }
 
+    if (filtros.formaPagamento) {
+      sql += ` AND t.forma_pagamento = ?`;
+      params.push(filtros.formaPagamento);
+    }
+
     sql += ` ORDER BY t.data DESC, t.id DESC`;
 
     if (filtros.limite && filtros.limite > 0) {
@@ -105,6 +121,7 @@ export class TransactionsRepository {
         t.parcela_atual,
         t.total_parcelas,
         t.grupo_parcelamento_id,
+        t.forma_pagamento,
         t.created_at,
         c.nome as categoria_nome,
         c.icone as categoria_icone,
@@ -120,8 +137,8 @@ export class TransactionsRepository {
 
   async criar(transacao: Omit<Transacao, 'id'>): Promise<number> {
     const result = await this.db.runAsync(
-      `INSERT INTO transacoes (valor, tipo, categoria_id, data, descricao, conciliado, origem, pago, parcela_atual, total_parcelas, grupo_parcelamento_id)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);`,
+      `INSERT INTO transacoes (valor, tipo, categoria_id, data, descricao, conciliado, origem, pago, parcela_atual, total_parcelas, grupo_parcelamento_id, forma_pagamento)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);`,
       transacao.valor,
       transacao.tipo,
       transacao.categoria_id,
@@ -132,7 +149,8 @@ export class TransactionsRepository {
       transacao.pago !== undefined ? (transacao.pago ? 1 : 0) : 1,
       transacao.parcela_atual ?? null,
       transacao.total_parcelas ?? null,
-      transacao.grupo_parcelamento_id ?? null
+      transacao.grupo_parcelamento_id ?? null,
+      transacao.forma_pagamento || 'outro'
     );
     return Number(result.lastInsertRowId);
   }
@@ -151,9 +169,13 @@ export class TransactionsRepository {
       return [id];
     }
 
-    const valorParcelaBase = Math.floor((valorTotal / numeroParcelas) * 100) / 100;
-    const diferencaCentavos = Math.round((valorTotal - valorParcelaBase * numeroParcelas) * 100) / 100;
-    const primeiraParcelaValor = Math.round((valorParcelaBase + diferencaCentavos) * 100) / 100;
+    const totalCentavos = reaisParaCentavos(valorTotal);
+    const parcelaBaseCentavos = Math.floor(totalCentavos / numeroParcelas);
+    const diferencaCentavos = totalCentavos - (parcelaBaseCentavos * numeroParcelas);
+    const primeiraParcelaCentavos = parcelaBaseCentavos + diferencaCentavos;
+
+    const valorParcelaBase = centavosParaReais(parcelaBaseCentavos);
+    const primeiraParcelaValor = centavosParaReais(primeiraParcelaCentavos);
 
     const grupoId = `parc_${Date.now()}_${Math.random().toString(36).substring(2, 8)}`;
     const idsCriados: number[] = [];
@@ -184,8 +206,8 @@ export class TransactionsRepository {
         const statusPago = p === 1 ? (transacaoBase.pago !== undefined ? (transacaoBase.pago ? 1 : 0) : 1) : 0;
 
         const result = await this.db.runAsync(
-          `INSERT INTO transacoes (valor, tipo, categoria_id, data, descricao, conciliado, origem, pago, parcela_atual, total_parcelas, grupo_parcelamento_id)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);`,
+          `INSERT INTO transacoes (valor, tipo, categoria_id, data, descricao, conciliado, origem, pago, parcela_atual, total_parcelas, grupo_parcelamento_id, forma_pagamento)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);`,
           valorDestaParcela,
           transacaoBase.tipo,
           transacaoBase.categoria_id,
@@ -196,7 +218,8 @@ export class TransactionsRepository {
           statusPago,
           p,
           numeroParcelas,
-          grupoId
+          grupoId,
+          transacaoBase.forma_pagamento || 'cartao_credito'
         );
 
         idsCriados.push(Number(result.lastInsertRowId));
@@ -253,6 +276,10 @@ export class TransactionsRepository {
     if (transacao.grupo_parcelamento_id !== undefined) {
       campos.push('grupo_parcelamento_id = ?');
       params.push(transacao.grupo_parcelamento_id);
+    }
+    if (transacao.forma_pagamento !== undefined) {
+      campos.push('forma_pagamento = ?');
+      params.push(transacao.forma_pagamento);
     }
 
     if (campos.length === 0) return;
@@ -360,11 +387,11 @@ export class TransactionsRepository {
 
     const receitas = Math.round((consolidado?.receitas || 0) * 100) / 100;
     const despesas = Math.round((consolidado?.despesas || 0) * 100) / 100;
-    const saldo = Math.round((receitas - despesas) * 100) / 100;
+    const saldo = subtrairMoeda(receitas, despesas);
 
     const receitasRealizadas = Math.round((consolidado?.receitasRealizadas || 0) * 100) / 100;
     const despesasRealizadas = Math.round((consolidado?.despesasRealizadas || 0) * 100) / 100;
-    const saldoRealizado = Math.round((receitasRealizadas - despesasRealizadas) * 100) / 100;
+    const saldoRealizado = subtrairMoeda(receitasRealizadas, despesasRealizadas);
 
     const despesasPendentes = Math.round((consolidado?.despesasPendentes || 0) * 100) / 100;
     const contasPendentesQtd = consolidado?.contasPendentesQtd || 0;
@@ -414,7 +441,7 @@ export class TransactionsRepository {
 
     const receitas = Math.round((consolidado?.receitas || 0) * 100) / 100;
     const despesas = Math.round((consolidado?.despesas || 0) * 100) / 100;
-    const saldo = Math.round((receitas - despesas) * 100) / 100;
+    const saldo = subtrairMoeda(receitas, despesas);
     const taxaEconomia = receitas > 0 ? ((receitas - despesas) / receitas) * 100 : 0;
 
     return {
@@ -544,24 +571,30 @@ export class TransactionsRepository {
 
     let totalEssencial = 0;
     let totalEstiloDeVida = 0;
+    let totalPoupanca = 0;
 
     for (const l of linhas) {
       if (l.tipo_gasto === 'estilo_de_vida') {
         totalEstiloDeVida += l.total;
+      } else if (l.tipo_gasto === 'poupanca') {
+        totalPoupanca += l.total;
       } else {
         totalEssencial += l.total;
       }
     }
 
-    const totalGeral = totalEssencial + totalEstiloDeVida;
+    const totalGeral = totalEssencial + totalEstiloDeVida + totalPoupanca;
     const percentualEssencial = totalGeral > 0 ? (totalEssencial / totalGeral) * 100 : 0;
     const percentualEstiloDeVida = totalGeral > 0 ? (totalEstiloDeVida / totalGeral) * 100 : 0;
+    const percentualPoupanca = totalGeral > 0 ? (totalPoupanca / totalGeral) * 100 : 0;
 
     return {
       totalEssencial: Math.round(totalEssencial * 100) / 100,
       totalEstiloDeVida: Math.round(totalEstiloDeVida * 100) / 100,
+      totalPoupanca: Math.round(totalPoupanca * 100) / 100,
       percentualEssencial: Math.round(percentualEssencial * 10) / 10,
       percentualEstiloDeVida: Math.round(percentualEstiloDeVida * 10) / 10,
+      percentualPoupanca: Math.round(percentualPoupanca * 10) / 10,
     };
   }
 

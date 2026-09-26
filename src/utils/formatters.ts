@@ -159,3 +159,40 @@ export function converterCentavosParaValor(textoCentavos: string): number {
   if (!digitos) return 0;
   return parseFloat(digitos) / 100;
 }
+
+/**
+ * Converte valor em reais (float) para centavos inteiros (integer)
+ * Ex: 12.34 -> 1234
+ */
+export function reaisParaCentavos(valor: number): number {
+  return Math.round(valor * 100);
+}
+
+/**
+ * Converte centavos inteiros para valor em reais (float com 2 casas)
+ * Ex: 1234 -> 12.34
+ */
+export function centavosParaReais(centavos: number): number {
+  return Math.round(centavos) / 100;
+}
+
+/**
+ * Soma valores monetários com precisão absoluta de centavos
+ */
+export function somarMoeda(a: number, b: number): number {
+  return (Math.round(a * 100) + Math.round(b * 100)) / 100;
+}
+
+/**
+ * Subtrai valores monetários com precisão absoluta de centavos
+ */
+export function subtrairMoeda(a: number, b: number): number {
+  return (Math.round(a * 100) - Math.round(b * 100)) / 100;
+}
+
+/**
+ * Multiplica valor monetário por fator com arredondamento seguro de centavos
+ */
+export function multiplicarMoeda(valor: number, fator: number): number {
+  return Math.round(valor * fator * 100) / 100;
+}

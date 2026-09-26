@@ -14,7 +14,7 @@ import * as DocumentPicker from 'expo-document-picker';
 import * as FileSystem from 'expo-file-system/legacy';
 import { useTheme } from '../context/ThemeContext';
 import { useApp } from '../context/AppContext';
-import { TransacaoExtratoPendente, Categoria } from '../types';
+import { TransacaoExtratoPendente } from '../types';
 import { StatementParser } from '../services/statementParser';
 import { formatarDataBr, formatarMoeda } from '../utils/formatters';
 
@@ -102,11 +102,35 @@ export const ImportScreen: React.FC = () => {
     );
   };
 
-  const alterarCategoriaDoItem = (idTemp: string, novaCategoriaId: number) => {
+  const alterarCategoriaDoItem = async (idTemp: string, novaCategoriaId: number) => {
+    const itemModificado = itensPendentes.find((i) => i.idTemp === idTemp);
+    if (!itemModificado) {
+      setCategoriaModalItem(null);
+      return;
+    }
+
+    // Alimenta o motor de aprendizado imediatamente com a correção do usuário
+    if (itemModificado.descricao) {
+      try {
+        await learningRepo.aprenderRegra(itemModificado.descricao, novaCategoriaId);
+      } catch (e) {
+        console.warn('Erro ao aprender regra:', e);
+      }
+    }
+
+    // Propaga a categoria corrigida para itens idênticos ou similares no lote
+    const descNormalizada = itemModificado.descricao.trim().toLowerCase();
+
     setItensPendentes((prev) =>
-      prev.map((item) =>
-        item.idTemp === idTemp ? { ...item, categoria_id_sugerida: novaCategoriaId } : item
-      )
+      prev.map((item) => {
+        if (item.idTemp === idTemp) {
+          return { ...item, categoria_id_sugerida: novaCategoriaId };
+        }
+        if (!item.jaConciliado && item.descricao.trim().toLowerCase() === descNormalizada) {
+          return { ...item, categoria_id_sugerida: novaCategoriaId };
+        }
+        return item;
+      })
     );
     setCategoriaModalItem(null);
   };

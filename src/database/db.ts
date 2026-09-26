@@ -3,18 +3,19 @@ import { TipoGasto } from '../types';
 
 export const DATABASE_NAME = 'financas.db';
 
-export const CATEGORIAS_PADRAO: Array<{
+export const CATEGORIAS_PADRAO: {
   nome: string;
   icone: string;
   cor: string;
   limite: number | null;
   tipo_gasto: TipoGasto;
-}> = [
+}[] = [
   { nome: 'Alimentação', icone: 'fast-food-outline', cor: '#FF6B6B', limite: 1200, tipo_gasto: 'essencial' },
   { nome: 'Transporte', icone: 'car-sport-outline', cor: '#4D96FF', limite: 500, tipo_gasto: 'essencial' },
   { nome: 'Moradia', icone: 'home-outline', cor: '#FF922B', limite: 1500, tipo_gasto: 'essencial' },
   { nome: 'Saúde', icone: 'fitness-outline', cor: '#20C997', limite: 300, tipo_gasto: 'essencial' },
   { nome: 'Lazer', icone: 'game-controller-outline', cor: '#9B51E0', limite: 400, tipo_gasto: 'estilo_de_vida' },
+  { nome: 'Investimentos / Reserva', icone: 'trending-up-outline', cor: '#0EA5E9', limite: null, tipo_gasto: 'poupanca' },
   { nome: 'Salário / Renda', icone: 'wallet-outline', cor: '#51CF66', limite: null, tipo_gasto: 'essencial' },
   { nome: 'Outros', icone: 'ellipsis-horizontal-circle-outline', cor: '#868E96', limite: null, tipo_gasto: 'estilo_de_vida' },
 ];
@@ -51,6 +52,7 @@ export async function inicializarBanco(db: SQLiteDatabase): Promise<void> {
       parcela_atual INTEGER DEFAULT NULL,
       total_parcelas INTEGER DEFAULT NULL,
       grupo_parcelamento_id TEXT DEFAULT NULL,
+      forma_pagamento TEXT DEFAULT 'outro',
       created_at TEXT DEFAULT CURRENT_TIMESTAMP
     );
 
@@ -179,6 +181,19 @@ export async function inicializarBanco(db: SQLiteDatabase): Promise<void> {
       CREATE INDEX IF NOT EXISTS idx_transacoes_data_tipo ON transacoes(data, tipo);
       CREATE INDEX IF NOT EXISTS idx_transacoes_data_pago ON transacoes(data, pago);
     `);
+  });
+
+  // Migração 4: Suporte a forma de pagamento em transações
+  await executarMigracao(4, 'Coluna forma_pagamento em transacoes', async () => {
+    try {
+      const colunasTransacoes = await db.getAllAsync<{ name: string }>('PRAGMA table_info(transacoes);');
+      const nomesTransacoes = new Set(colunasTransacoes.map((c) => c.name.toLowerCase()));
+      if (!nomesTransacoes.has('forma_pagamento')) {
+        await db.execAsync(`ALTER TABLE transacoes ADD COLUMN forma_pagamento TEXT DEFAULT 'outro';`);
+      }
+    } catch (e) {
+      console.warn('Migração 4 (forma_pagamento):', e);
+    }
   });
 
   // 5. Verifica se categorias padrão já existem, se não, semeia

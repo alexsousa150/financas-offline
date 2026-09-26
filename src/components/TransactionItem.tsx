@@ -115,6 +115,20 @@ export const TransactionItem: React.FC<TransactionItemProps> = ({
               {formatarDataBr(transacao.data)}
             </Text>
 
+            {transacao.forma_pagamento && transacao.forma_pagamento !== 'outro' && (
+              <View style={[styles.badgeFormaPagamento, { backgroundColor: theme.inputBg, borderColor: theme.inputBorder }]}>
+                <Text style={[styles.textoBadgeFormaPagamento, { color: theme.textSecondary }]}>
+                  {transacao.forma_pagamento === 'pix'
+                    ? 'Pix'
+                    : transacao.forma_pagamento === 'cartao_credito'
+                    ? 'Crédito'
+                    : transacao.forma_pagamento === 'cartao_debito'
+                    ? 'Débito'
+                    : 'Dinheiro'}
+                </Text>
+              </View>
+            )}
+
             {isParcelado && (
               <View style={[styles.badgeParcela, { backgroundColor: theme.primaryLight }]}>
                 <Ionicons name="card-outline" size={10} color={theme.primary} />
@@ -203,6 +217,18 @@ const styles = StyleSheet.create({
   data: {
     fontSize: 12,
     fontWeight: '500',
+  },
+  badgeFormaPagamento: {
+    paddingHorizontal: 5,
+    paddingVertical: 1,
+    borderRadius: 5,
+    borderWidth: 1,
+    marginLeft: 4,
+  },
+  textoBadgeFormaPagamento: {
+    fontSize: 9,
+    fontWeight: '700',
+    textTransform: 'uppercase',
   },
   badgeParcela: {
     flexDirection: 'row',

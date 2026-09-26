@@ -9,9 +9,24 @@ import {
   getMesAnterior,
   getMesPosterior,
   formatarVariacao,
+  reaisParaCentavos,
+  centavosParaReais,
+  somarMoeda,
+  subtrairMoeda,
+  multiplicarMoeda,
 } from '../src/utils/formatters.ts';
 
 describe('Formatters - Formatação Monetária e Datas', () => {
+  it('deve executar aritmética monetária em centavos sem erros de float', () => {
+    // 0.1 + 0.2 em float dá 0.30000000000000004
+    assert.strictEqual(0.1 + 0.2 === 0.3, false); // Prova do bug de float padrão JS
+    assert.strictEqual(somarMoeda(0.1, 0.2), 0.3); // Com somarMoeda, dá exatamente 0.3!
+
+    assert.strictEqual(subtrairMoeda(100.55, 33.33), 67.22);
+    assert.strictEqual(reaisParaCentavos(99.99), 9999);
+    assert.strictEqual(centavosParaReais(9999), 99.99);
+    assert.strictEqual(multiplicarMoeda(33.33, 3), 99.99);
+  });
   it('deve converter centavos digitados para valor float corretamente', () => {
     assert.strictEqual(converterCentavosParaValor('1234'), 12.34);
     assert.strictEqual(converterCentavosParaValor('50'), 0.5);

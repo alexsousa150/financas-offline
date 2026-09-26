@@ -287,49 +287,56 @@ export const AnalyticsScreen: React.FC = () => {
         )}
       </View>
 
-      {/* Diagnóstico Essencial vs Estilo de Vida */}
-      {analiseEssencial && (analiseEssencial.totalEssencial > 0 || analiseEssencial.totalEstiloDeVida > 0) && (
+      {/* Diagnóstico Essencial vs Estilo de Vida (Regra 50/30/20) */}
+      {analiseEssencial && (analiseEssencial.totalEssencial > 0 || analiseEssencial.totalEstiloDeVida > 0 || analiseEssencial.totalPoupanca > 0) && (
         <View style={[styles.cardDiagnosticoEssencial, { backgroundColor: theme.card, borderColor: theme.cardBorder }]}>
           <View style={styles.cabecalhoDiagnostico}>
             <View style={[styles.circuloIcone, { backgroundColor: theme.primaryLight }]}>
               <Ionicons name="pie-chart" size={20} color={theme.primary} />
             </View>
             <View style={{ flex: 1 }}>
-              <Text style={[styles.tituloSecao, { color: theme.text }]}>Essencial e estilo de vida</Text>
+              <Text style={[styles.tituloSecao, { color: theme.text }]}>Regra 50 / 30 / 20</Text>
               <Text style={[styles.subtituloDiagnostico, { color: theme.textSecondary }]}>
-                Divisão dos seus gastos no mês
+                Divisão dos seus gastos: Essencial, Estilo e Poupança
               </Text>
             </View>
           </View>
 
-          {/* Barra Comparativa Bicolor */}
-          <View style={styles.barraComparativaContainer}>
-            <View
-              style={[
-                styles.barraSegmento,
-                {
-                  backgroundColor: theme.success,
-                  flex: Math.max(1, analiseEssencial.percentualEssencial),
-                  borderTopLeftRadius: 8,
-                  borderBottomLeftRadius: 8,
-                  borderTopRightRadius: analiseEssencial.percentualEstiloDeVida === 0 ? 8 : 0,
-                  borderBottomRightRadius: analiseEssencial.percentualEstiloDeVida === 0 ? 8 : 0,
-                },
-              ]}
-            />
-            <View
-              style={[
-                styles.barraSegmento,
-                {
-                  backgroundColor: theme.warning,
-                  flex: Math.max(1, analiseEssencial.percentualEstiloDeVida),
-                  borderTopRightRadius: 8,
-                  borderBottomRightRadius: 8,
-                  borderTopLeftRadius: analiseEssencial.percentualEssencial === 0 ? 8 : 0,
-                  borderBottomLeftRadius: analiseEssencial.percentualEssencial === 0 ? 8 : 0,
-                },
-              ]}
-            />
+          {/* Barra Comparativa Tricolor */}
+          <View style={[styles.barraComparativaContainer, { borderRadius: 8 }]}>
+            {analiseEssencial.totalEssencial > 0 && (
+              <View
+                style={[
+                  styles.barraSegmento,
+                  {
+                    backgroundColor: theme.success,
+                    flex: Math.max(1, analiseEssencial.percentualEssencial),
+                  },
+                ]}
+              />
+            )}
+            {analiseEssencial.totalEstiloDeVida > 0 && (
+              <View
+                style={[
+                  styles.barraSegmento,
+                  {
+                    backgroundColor: theme.warning,
+                    flex: Math.max(1, analiseEssencial.percentualEstiloDeVida),
+                  },
+                ]}
+              />
+            )}
+            {analiseEssencial.totalPoupanca > 0 && (
+              <View
+                style={[
+                  styles.barraSegmento,
+                  {
+                    backgroundColor: theme.primary,
+                    flex: Math.max(1, analiseEssencial.percentualPoupanca),
+                  },
+                ]}
+              />
+            )}
           </View>
 
           <View style={styles.linhaDetalheEssencial}>
@@ -346,16 +353,26 @@ export const AnalyticsScreen: React.FC = () => {
             <View style={styles.colunaEssencial}>
               <View style={styles.linhaIndicadorCor}>
                 <View style={[styles.bolinhaCor, { backgroundColor: theme.warning }]} />
-                <Text style={[styles.labelClassificacao, { color: theme.text }]}>Estilo de vida</Text>
+                <Text style={[styles.labelClassificacao, { color: theme.text }]}>Estilo</Text>
               </View>
               <Text style={[styles.valorClassificacao, { color: theme.warning }]}>
                 {formatarMoeda(analiseEssencial.totalEstiloDeVida)} ({analiseEssencial.percentualEstiloDeVida.toFixed(0)}%)
               </Text>
             </View>
+
+            <View style={styles.colunaEssencial}>
+              <View style={styles.linhaIndicadorCor}>
+                <View style={[styles.bolinhaCor, { backgroundColor: theme.primary }]} />
+                <Text style={[styles.labelClassificacao, { color: theme.text }]}>Poupança</Text>
+              </View>
+              <Text style={[styles.valorClassificacao, { color: theme.primary }]}>
+                {formatarMoeda(analiseEssencial.totalPoupanca)} ({analiseEssencial.percentualPoupanca.toFixed(0)}%)
+              </Text>
+            </View>
           </View>
 
           <Text style={[styles.dicaFinanceira, { color: theme.textSecondary }]}>
-            Manter despesas essenciais em até 50% ou 60% da renda ajuda a reservar margem para imprevistos e planos futuros.
+            Referência 50/30/20: até 50% em necessidades básicas, 30% em lazer e conforto, e 20% em reservas financeiras e investimentos futuros.
           </Text>
         </View>
       )}
