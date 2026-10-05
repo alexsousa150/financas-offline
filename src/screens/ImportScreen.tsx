@@ -1,3 +1,4 @@
+import { IoniconsName } from '../types';
 import React, { useState } from 'react';
 import {
   View,
@@ -345,7 +346,7 @@ export const ImportScreen: React.FC = () => {
                 ]}
               >
                 <View style={[styles.iconeBancoDetectado, { backgroundColor: bancoDetectado.cor }]}>
-                  <Ionicons name={bancoDetectado.icone as any} size={16} color="#FFFFFF" />
+                  <Ionicons name={bancoDetectado.icone as IoniconsName} size={16} color="#FFFFFF" />
                 </View>
                 <View style={{ flex: 1 }}>
                   <Text style={[styles.nomeBancoDetectado, { color: theme.text }]}>
@@ -469,7 +470,7 @@ export const ImportScreen: React.FC = () => {
                         ]}
                       >
                         <Ionicons
-                          name={(categoria?.icone as any) || 'pricetag-outline'}
+                          name={(categoria?.icone as IoniconsName) || 'pricetag-outline'}
                           size={13}
                           color={categoria?.cor || theme.text}
                         />
@@ -540,7 +541,7 @@ export const ImportScreen: React.FC = () => {
                   onPress={() => alterarCategoriaDoItem(categoriaModalItem.idTemp, cat.id)}
                 >
                   <View style={[styles.circuloCatModal, { backgroundColor: cat.cor + '25' }]}>
-                    <Ionicons name={(cat.icone as any) || 'pricetag'} size={18} color={cat.cor} />
+                    <Ionicons name={(cat.icone as IoniconsName) || 'pricetag'} size={18} color={cat.cor} />
                   </View>
                   <Text style={[styles.nomeCatModal, { color: theme.text }]}>{cat.nome}</Text>
                   {categoriaModalItem.categoria_id_sugerida === cat.id && (

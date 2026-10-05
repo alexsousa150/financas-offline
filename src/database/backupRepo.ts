@@ -228,8 +228,24 @@ export class BackupRepository {
     recorrentesRestaurados: number;
     favoritosRestaurados: number;
   }> {
-    if (!dadosJson.categorias || !dadosJson.transacoes) {
-      throw new Error('Formato de backup inválido.');
+    // Validação de schema
+    if (typeof dadosJson !== 'object' || dadosJson === null) {
+      throw new Error('Formato de backup inválido: o arquivo não contém um objeto JSON válido.');
+    }
+    if (!Array.isArray(dadosJson.categorias) || !Array.isArray(dadosJson.transacoes)) {
+      throw new Error('Formato de backup inválido: os dados estão corrompidos ou em formato incorreto.');
+    }
+    if (dadosJson.categorias.length > 0) {
+      const cat = dadosJson.categorias[0];
+      if (!('id' in cat) || !('nome' in cat) || !('cor' in cat)) {
+        throw new Error('Formato de backup inválido: esquema de categorias incorreto.');
+      }
+    }
+    if (dadosJson.transacoes.length > 0) {
+      const tx = dadosJson.transacoes[0];
+      if (!('valor' in tx) || !('tipo' in tx) || !('data' in tx)) {
+        throw new Error('Formato de backup inválido: esquema de transações incorreto.');
+      }
     }
 
     // 1. Gera backup automático de segurança antes de restaurar para prevenir perda de dados

@@ -1,3 +1,4 @@
+import { IoniconsName } from '../types';
 import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
@@ -31,7 +32,7 @@ export const CategoryProgressBar: React.FC<CategoryProgressBarProps> = ({ item, 
       <View style={styles.linhaCabecalho}>
         <View style={styles.infoEsquerda}>
           <View style={[styles.circuloIcone, { backgroundColor: item.cor + '22' }]}>
-            <Ionicons name={(item.icone as any) || 'pricetag-outline'} size={18} color={item.cor} />
+            <Ionicons name={(item.icone as IoniconsName) || 'pricetag-outline'} size={18} color={item.cor} />
           </View>
           <View style={styles.textos}>
             <View style={styles.linhaNome}>

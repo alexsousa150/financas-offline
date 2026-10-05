@@ -1,4 +1,5 @@
-import React, { useState, useEffect, useRef } from 'react';
+import { IoniconsName } from '../types';
+import React, { useRef } from 'react';
 import {
   Modal,
   View,
@@ -7,7 +8,6 @@ import {
   TouchableOpacity,
   StyleSheet,
   ScrollView,
-  Alert,
   KeyboardAvoidingView,
   Platform,
   Switch,
@@ -16,16 +16,15 @@ import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '../context/ThemeContext';
 import { useApp } from '../context/AppContext';
 import { TipoTransacao, Transacao, FormaPagamento } from '../types';
+import { useTransactionForm } from '../hooks/useTransactionForm';
 import {
   formatarMoeda,
-  converterCentavosParaValor,
   getDataHojeIso,
   getDataOntemIso,
   formatarDataBr,
 } from '../utils/formatters';
 import { CategoryModal } from './CategoryModal';
 import { AppHaptics } from '../utils/haptics';
-import { NotificationService } from '../services/notificationService';
 
 const OPCOES_PARCELAS = [2, 3, 4, 5, 6, 8, 10, 12, 18, 24];
 const DIAS_RAPIDOS = [1, 5, 10, 12, 15, 20, 25, 28, 30];
@@ -38,14 +37,16 @@ const FORMAS_PAGAMENTO: { id: FormaPagamento; label: string; icone: any }[] = [
   { id: 'outro', label: 'Outro', icone: 'ellipsis-horizontal-circle-outline' },
 ];
 
+const SUGESTOES_RENDA = ['Salário', 'Adiantamento', 'Renda Extra', 'Pix Recebido', 'Freelance'];
+
 const SUGESTOES_DESCRICAO_PADRAO: Record<string, string[]> = {
   alimentação: ['Supermercado', 'Padaria', 'Almoço', 'iFood / Delivery', 'Feira / Açougue', 'Lanche'],
   transporte: ['Combustível', 'Uber / 99', 'Estacionamento', 'Pedágio', 'Oficina', 'Passagem'],
   moradia: ['Aluguel', 'Condomínio', 'Energia Elétrica', 'Água', 'Internet', 'Gás', 'Mercado'],
   saúde: ['Farmácia', 'Consulta Médica', 'Dentista', 'Exames', 'Remédios'],
   lazer: ['Cinema', 'Restaurante / Bar', 'Viagem', 'Passeio', 'Streaming'],
-  salário: ['Salário', 'Adiantamento', 'Renda Extra', 'Pix Recebido', 'Freelance'],
-  renda: ['Salário', 'Adiantamento', 'Renda Extra', 'Pix Recebido', 'Freelance'],
+  salário: SUGESTOES_RENDA,
+  renda: SUGESTOES_RENDA,
   outros: ['Pix', 'Transferência', 'Compra Diversa', 'Presente'],
 };
 
@@ -74,225 +75,40 @@ export const TransactionModal: React.FC<TransactionModalProps> = ({
     notificarMudancaDados,
   } = useApp();
 
-  const [tipo, setTipo] = useState<TipoTransacao>('despesa');
-  const [valorTextoCentavos, setValorTextoCentavos] = useState('');
-  const [categoriaId, setCategoriaId] = useState<number | null>(null);
-  const [dataIso, setDataIso] = useState<string>(getDataHojeIso());
-  const [descricao, setDescricao] = useState('');
-  const [salvando, setSalvando] = useState(false);
-  const [lembreteAtivo, setLembreteAtivo] = useState(false);
-
-  // Status Pago vs Pendente
-  const [pago, setPago] = useState(true);
-
-  // Forma de Pagamento
-  const [formaPagamento, setFormaPagamento] = useState<FormaPagamento>('outro');
-
-  // Seletor de data estendido
-  const [mostrarDiasCustom, setMostrarDiasCustom] = useState(false);
-  const [dataInputTexto, setDataInputTexto] = useState('');
-
-  // Parcelamento
-  const [isParcelado, setIsParcelado] = useState(false);
-  const [numeroParcelas, setNumeroParcelas] = useState(3);
-
-  // Modal aninhado para criar nova categoria na hora sem perder os dados digitados
-  const [modalNovaCategoriaVisivel, setModalNovaCategoriaVisivel] = useState(false);
-
-  const inputValorRef = useRef<TextInput>(null);
-
-  useEffect(() => {
-    if (visivel) {
-      setLembreteAtivo(false);
-      setMostrarDiasCustom(false);
-
-      if (transacaoParaEdicao) {
-        setTipo(transacaoParaEdicao.tipo);
-        const centavos = Math.round(transacaoParaEdicao.valor * 100).toString();
-        setValorTextoCentavos(centavos);
-        setCategoriaId(transacaoParaEdicao.categoria_id);
-        setDataIso(transacaoParaEdicao.data);
-        setDataInputTexto(formatarDataBr(transacaoParaEdicao.data));
-        setDescricao(transacaoParaEdicao.descricao || '');
-        setPago(transacaoParaEdicao.pago !== 0);
-        setFormaPagamento(transacaoParaEdicao.forma_pagamento || 'outro');
-        setIsParcelado(false); // Edição é pontual por parcela
-      } else if (transacaoParaDuplicacao) {
-        setTipo(transacaoParaDuplicacao.tipo);
-        const centavos = Math.round(transacaoParaDuplicacao.valor * 100).toString();
-        setValorTextoCentavos(centavos);
-        setCategoriaId(transacaoParaDuplicacao.categoria_id);
-        const hoje = getDataHojeIso();
-        setDataIso(hoje);
-        setDataInputTexto(formatarDataBr(hoje));
-        setDescricao(transacaoParaDuplicacao.descricao ? `${transacaoParaDuplicacao.descricao} (Cópia)` : '');
-        setPago(true);
-        setFormaPagamento(transacaoParaDuplicacao.forma_pagamento || 'outro');
-        setIsParcelado(false);
-      } else {
-        // Novo lançamento padrão
-        setTipo(tipoInicial || 'despesa');
-        setValorTextoCentavos('');
-        const hoje = getDataHojeIso();
-        setDataIso(hoje);
-        setDataInputTexto(formatarDataBr(hoje));
-        setDescricao('');
-        setPago(true);
-        setFormaPagamento('pix');
-        setIsParcelado(false);
-        setNumeroParcelas(3);
-        if (categorias.length > 0) {
-          const catPadrao = categorias.find((c) => c.nome.toLowerCase() === 'alimentação') || categorias[0];
-          setCategoriaId(catPadrao.id);
-        }
-      }
-
-      // Foco imediato no campo de valor
-      setTimeout(() => {
-        inputValorRef.current?.focus();
-      }, 150);
-    }
-  }, [visivel, transacaoParaEdicao, transacaoParaDuplicacao, categorias, tipoInicial]);
-
-  const alternarTipo = (novoTipo: TipoTransacao) => {
-    AppHaptics.toqueSelecao();
-    setTipo(novoTipo);
-    if (novoTipo === 'receita') {
-      setIsParcelado(false);
-      const catReceita = categorias.find(
-        (c) => c.nome.toLowerCase().includes('salário') || c.nome.toLowerCase().includes('renda')
-      );
-      if (catReceita) setCategoriaId(catReceita.id);
-    } else {
-      const catDespesa = categorias.find((c) => c.nome.toLowerCase() === 'alimentação') || categorias[0];
-      if (catDespesa) setCategoriaId(catDespesa.id);
-    }
-  };
-
-  const selecionarDiaDoMes = (dia: number) => {
-    AppHaptics.toqueLeve();
-    const hoje = new Date();
-    const ano = hoje.getFullYear();
-    const mes = hoje.getMonth() + 1;
-    const dataAlvoIso = `${ano}-${String(mes).padStart(2, '0')}-${String(dia).padStart(2, '0')}`;
-    setDataIso(dataAlvoIso);
-    setDataInputTexto(formatarDataBr(dataAlvoIso));
-
-    // Se a data for futura, sugere como pendente
-    if (dataAlvoIso > getDataHojeIso()) {
-      setPago(false);
-    }
-  };
-
-  const handleDataTextoChange = (texto: string) => {
-    const limpo = texto.replace(/\D/g, '');
-    let formatado = limpo;
-    if (limpo.length > 2 && limpo.length <= 4) {
-      formatado = `${limpo.slice(0, 2)}/${limpo.slice(2)}`;
-    } else if (limpo.length > 4) {
-      formatado = `${limpo.slice(0, 2)}/${limpo.slice(2, 4)}/${limpo.slice(4, 8)}`;
-    }
-    setDataInputTexto(formatado);
-
-    if (limpo.length === 8) {
-      const d = limpo.slice(0, 2);
-      const m = limpo.slice(2, 4);
-      const a = limpo.slice(4, 8);
-      const iso = `${a}-${m}-${d}`;
-      setDataIso(iso);
-      if (iso > getDataHojeIso()) {
-        setPago(false);
-      }
-    }
-  };
-
-  const valorNumerico = converterCentavosParaValor(valorTextoCentavos);
-  const valorParcelaCalculado = isParcelado && numeroParcelas > 0 ? valorNumerico / numeroParcelas : valorNumerico;
-
-  const categoriaEscolhida = categorias.find((c) => c.id === categoriaId);
-  const sugestoesRapidas = React.useMemo(() => {
-    if (!categoriaEscolhida) return ['Compra', 'Pagamento', 'Pix'];
-    const nomeNorm = categoriaEscolhida.nome.toLowerCase().trim();
-    for (const [chave, lista] of Object.entries(SUGESTOES_DESCRICAO_PADRAO)) {
-      if (nomeNorm.includes(chave) || chave.includes(nomeNorm)) {
-        return lista;
-      }
-    }
-    return ['Compra', 'Pagamento', 'Pix', 'Serviço'];
-  }, [categoriaEscolhida]);
-
-  const handleSalvar = async () => {
-    if (valorNumerico <= 0) {
-      Alert.alert('Valor Obrigatório', 'Digite um valor maior que zero.');
-      return;
-    }
-
-    if (!categoriaId) {
-      Alert.alert('Categoria Obrigatória', 'Selecione uma categoria para o lançamento.');
-      return;
-    }
-
-    try {
-      setSalvando(true);
-
-      if (transacaoParaEdicao) {
-        await transactionsRepo.atualizar(transacaoParaEdicao.id, {
-          valor: valorNumerico,
-          tipo,
-          categoria_id: categoriaId,
-          data: dataIso,
-          descricao: descricao.trim(),
-          pago: pago ? 1 : 0,
-          forma_pagamento: formaPagamento,
-        });
-      } else if (isParcelado && tipo === 'despesa') {
-        // Criação de compra parcelada
-        await transactionsRepo.criarParcelado(
-          {
-            valor: valorNumerico,
-            tipo,
-            categoria_id: categoriaId,
-            data: dataIso,
-            descricao: descricao.trim(),
-            conciliado: 0,
-            origem: 'manual',
-            pago: pago ? 1 : 0,
-            forma_pagamento: formaPagamento || 'cartao_credito',
-          },
-          numeroParcelas,
-          valorNumerico
-        );
-      } else {
-        await transactionsRepo.criar({
-          valor: valorNumerico,
-          tipo,
-          categoria_id: categoriaId,
-          data: dataIso,
-          descricao: descricao.trim(),
-          conciliado: 0,
-          origem: 'manual',
-          pago: pago ? 1 : 0,
-          forma_pagamento: formaPagamento,
-        });
-      }
-
-      if (lembreteAtivo && tipo === 'despesa') {
-        await NotificationService.agendarLembreteVencimento(
-          descricao.trim() || 'Despesa',
-          valorNumerico,
-          dataIso
-        );
-      }
-
-      await AppHaptics.toqueSucesso();
-      await notificarMudancaDados();
-      onFechar();
-    } catch (e: any) {
-      Alert.alert('Erro', 'Não foi possível salvar o lançamento.');
-    } finally {
-      setSalvando(false);
-    }
-  };
+    const {
+    tipo, setTipo,
+    valorTextoCentavos, setValorTextoCentavos,
+    categoriaId, setCategoriaId,
+    dataIso, setDataIso,
+    descricao, setDescricao,
+    salvando,
+    lembreteAtivo, setLembreteAtivo,
+    pago, setPago,
+    formaPagamento, setFormaPagamento,
+    mostrarDiasCustom, setMostrarDiasCustom,
+    dataInputTexto, setDataInputTexto,
+    isParcelado, setIsParcelado,
+    numeroParcelas, setNumeroParcelas,
+    modalNovaCategoriaVisivel, setModalNovaCategoriaVisivel,
+    inputValorRef,
+    alternarTipo,
+    selecionarDiaDoMes,
+    handleDataTextoChange,
+    valorNumerico,
+    valorParcelaCalculado,
+    categoriaEscolhida,
+    sugestoesRapidas,
+    handleSalvar,
+  } = useTransactionForm({
+    visivel,
+    tipoInicial,
+    transacaoParaEdicao,
+    transacaoParaDuplicacao,
+    categorias,
+    transactionsRepo,
+    notificarMudancaDados,
+    onFechar,
+  });
 
   const corTemaTipo = tipo === 'despesa' ? theme.danger : theme.success;
 
@@ -399,7 +215,7 @@ export const TransactionModal: React.FC<TransactionModalProps> = ({
                       }}
                     >
                       <Ionicons
-                        name={(fav.icone as any) || 'pricetag-outline'}
+                        name={(fav.icone as IoniconsName) || 'pricetag-outline'}
                         size={13}
                         color={fav.categoria_cor || theme.primary}
                         style={{ marginRight: 5 }}
@@ -461,7 +277,7 @@ export const TransactionModal: React.FC<TransactionModalProps> = ({
                     <Text style={[styles.subtituloStatus, { color: theme.textSecondary }]}>
                       {pago
                         ? 'Desconta/Soma no Saldo Atual de hoje'
-                        : 'Boleto futuro: entra apenas na previsão do fim do mês'}
+                        : 'Não afeta o saldo atual'}
                     </Text>
                   </View>
                 </View>
@@ -540,7 +356,7 @@ export const TransactionModal: React.FC<TransactionModalProps> = ({
                           </Text>
                         </Text>
                         <Text style={[styles.subtextoResumoParcelas, { color: theme.textSecondary }]}>
-                          A 1ª parcela segue o status escolhido; as parcelas futuras nascem como Pendentes mês a mês.
+                          Parcelas futuras serão lançadas como pendentes.
                         </Text>
                       </View>
                     )}
@@ -586,7 +402,7 @@ export const TransactionModal: React.FC<TransactionModalProps> = ({
                     ]}
                   >
                     <Ionicons
-                      name={(cat.icone as any) || 'pricetag-outline'}
+                      name={(cat.icone as IoniconsName) || 'pricetag-outline'}
                       size={18}
                       color={selecionada ? '#FFFFFF' : cat.cor}
                     />

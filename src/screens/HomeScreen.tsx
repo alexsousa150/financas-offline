@@ -1,3 +1,4 @@
+import { IoniconsName } from '../types';
 import React from 'react';
 import {
   View,
@@ -12,6 +13,8 @@ import { useTheme } from '../context/ThemeContext';
 import { useApp } from '../context/AppContext';
 import { MonthSelector } from '../components/MonthSelector';
 import { TransactionItem } from '../components/TransactionItem';
+import EmptyState from '../components/EmptyState';
+import { Transacao } from '../types';
 
 interface HomeScreenProps {
   onNavegarParaHistorico: () => void;
@@ -52,6 +55,15 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
     setAtualizando(false);
   };
 
+  const handleAlternarPago = React.useCallback(async (item: Transacao) => {
+    await alternarStatusPago(item.id, item.pago === 0 ? 1 : 0);
+  }, [alternarStatusPago]);
+
+  const handleExcluir = React.useCallback(async (item: Transacao) => {
+    await transactionsRepo.excluir(item.id);
+    await notificarMudancaDados();
+  }, [transactionsRepo, notificarMudancaDados]);
+
   const categoriasComOrcamento = rankingGastos.filter(c => c.limiteMensal && c.limiteMensal > 0);
 
   return (
@@ -74,6 +86,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
             style={[styles.botaoCabecalho, { backgroundColor: theme.card, borderColor: theme.cardBorder }]}
             hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
             activeOpacity={0.7}
+            accessibilityLabel="Categorias"
           >
             <Ionicons name="grid-outline" size={19} color={theme.textSecondary} />
           </TouchableOpacity>
@@ -82,6 +95,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
             style={[styles.botaoCabecalho, { backgroundColor: theme.card, borderColor: theme.cardBorder }]}
             hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
             activeOpacity={0.7}
+            accessibilityLabel="Configurações"
           >
             <Ionicons name="settings-outline" size={19} color={theme.textSecondary} />
           </TouchableOpacity>
@@ -105,6 +119,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
             style={[styles.botaoOlho, { backgroundColor: theme.isDark ? '#20222C' : '#F1F2F6' }]}
             hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
             activeOpacity={0.7}
+            accessibilityLabel={modoPrivacidade ? 'Mostrar valores' : 'Ocultar valores'}
           >
             <Ionicons
               name={modoPrivacidade ? 'eye-off-outline' : 'eye-outline'}
@@ -135,7 +150,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
             style={[
               styles.cardMetrica,
               {
-                backgroundColor: theme.isDark ? 'rgba(52, 211, 153, 0.08)' : 'rgba(5, 150, 105, 0.05)',
+                backgroundColor: theme.successLight,
                 borderColor: theme.isDark ? 'rgba(52, 211, 153, 0.2)' : 'rgba(5, 150, 105, 0.15)',
               },
             ]}
@@ -153,7 +168,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
             style={[
               styles.cardMetrica,
               {
-                backgroundColor: theme.isDark ? 'rgba(248, 113, 113, 0.08)' : 'rgba(225, 29, 72, 0.05)',
+                backgroundColor: theme.dangerLight,
                 borderColor: theme.isDark ? 'rgba(248, 113, 113, 0.2)' : 'rgba(225, 29, 72, 0.15)',
               },
             ]}
@@ -202,7 +217,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
                   <View style={styles.headerOrcamento}>
                     <View style={styles.iconeOrcamentoContainer}>
                       <View style={[styles.circuloIconeOrcamento, { backgroundColor: cat.cor + '1A' }]}>
-                        <Ionicons name={cat.icone as any} size={15} color={cat.cor} />
+                        <Ionicons name={cat.icone as IoniconsName} size={15} color={cat.cor} />
                       </View>
                       <Text style={[styles.nomeOrcamento, { color: theme.text }]} numberOfLines={1}>
                         {cat.nome}
@@ -251,15 +266,11 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
         </View>
 
         {transacoesRecentes.length === 0 ? (
-          <View style={[styles.containerVazio, { backgroundColor: theme.card, borderColor: theme.cardBorder }]}>
-            <Ionicons name="receipt-outline" size={36} color={theme.textMuted} />
-            <Text style={[styles.tituloVazio, { color: theme.textSecondary }]}>
-              Nenhum lançamento neste mês
-            </Text>
-            <Text style={[styles.subtituloVazio, { color: theme.textMuted }]}>
-              Toque no botão + abaixo para registrar seus gastos ou entradas.
-            </Text>
-          </View>
+          <EmptyState
+            icone="receipt-outline"
+            titulo="Nenhum lançamento neste mês"
+            subtitulo="Toque no botão + abaixo para registrar seus gastos ou entradas."
+          />
         ) : (
           transacoesRecentes.map((t) => (
             <TransactionItem
@@ -267,11 +278,8 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
               transacao={t}
               onEditar={abrirModalEditarLancamento}
               onDuplicar={abrirModalDuplicarLancamento}
-              onAlternarPago={(item) => alternarStatusPago(item.id, item.pago === 0 ? 1 : 0)}
-              onExcluir={async (item) => {
-                await transactionsRepo.excluir(item.id);
-                await notificarMudancaDados();
-              }}
+              onAlternarPago={handleAlternarPago}
+              onExcluir={handleExcluir}
             />
           ))
         )}
@@ -326,11 +334,6 @@ const styles = StyleSheet.create({
     borderRadius: 24,
     borderWidth: 1,
     marginBottom: 20,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 3 },
-    shadowOpacity: 0.05,
-    shadowRadius: 10,
-    elevation: 3,
   },
   linhaLabelSaldo: {
     flexDirection: 'row',
@@ -492,24 +495,5 @@ const styles = StyleSheet.create({
   linkVerTodos: {
     fontSize: 13,
     fontWeight: '700',
-  },
-  containerVazio: {
-    padding: 32,
-    borderRadius: 20,
-    borderWidth: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 8,
-    marginTop: 4,
-  },
-  tituloVazio: {
-    fontSize: 15,
-    fontWeight: '700',
-    marginTop: 4,
-  },
-  subtituloVazio: {
-    fontSize: 13,
-    textAlign: 'center',
-    lineHeight: 19,
   },
 });

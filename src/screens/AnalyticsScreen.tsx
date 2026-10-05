@@ -1,3 +1,4 @@
+import { IoniconsName } from '../types';
 import React, { useState, useEffect, useCallback } from 'react';
 import {
   View,
@@ -15,8 +16,9 @@ import { useApp } from '../context/AppContext';
 import { MonthSelector } from '../components/MonthSelector';
 import { DonutChart, FatiaGrafico } from '../components/DonutChart';
 import { CategoryProgressBar } from '../components/CategoryProgressBar';
-import { formatarMoeda, formatarVariacao } from '../utils/formatters';
+import { formatarMoeda } from '../utils/formatters';
 import { ComprometimentoFuturo, ProjecaoFluxoMes, AnomaliaGasto } from '../types';
+import EmptyState from '../components/EmptyState';
 
 export const AnalyticsScreen: React.FC = () => {
   const { theme } = useTheme();
@@ -81,9 +83,6 @@ export const AnalyticsScreen: React.FC = () => {
     cor: item.cor,
     percentual: item.percentual,
   }));
-
-  const maiorSangria = rankingGastos.length > 0 ? rankingGastos[0] : null;
-  const variacaoSangria = maiorSangria ? formatarVariacao(maiorSangria.variacaoPercentual) : null;
 
   const taxaEconomia =
     resumoMes.receitas > 0
@@ -378,7 +377,7 @@ export const AnalyticsScreen: React.FC = () => {
           </View>
 
           <Text style={[styles.dicaFinanceira, { color: theme.textSecondary }]}>
-            Referência 50/30/20: até 50% em necessidades básicas, 30% em lazer e conforto, e 20% em reservas financeiras e investimentos futuros.
+            Ref.: 50% necessidades · 30% conforto · 20% reservas
           </Text>
         </View>
       )}
@@ -393,7 +392,7 @@ export const AnalyticsScreen: React.FC = () => {
             <View style={{ flex: 1 }}>
               <Text style={[styles.tituloSecao, { color: theme.text }]}>Gastos atípicos detectados</Text>
               <Text style={[styles.subtituloDiagnostico, { color: theme.textSecondary }]}>
-                Categorias com despesas significativamente acima da sua média recente
+                Categorias acima da média nos últimos meses
               </Text>
             </View>
           </View>
@@ -407,7 +406,7 @@ export const AnalyticsScreen: React.FC = () => {
                 <View style={styles.linhaTopoAnomalia}>
                   <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, flex: 1 }}>
                     <Ionicons
-                      name={(anomalia.categoriaIcone as any) || 'pricetag-outline'}
+                      name={(anomalia.categoriaIcone as IoniconsName) || 'pricetag-outline'}
                       size={16}
                       color={anomalia.categoriaCor || theme.primary}
                     />
@@ -443,7 +442,7 @@ export const AnalyticsScreen: React.FC = () => {
             <View style={{ flex: 1 }}>
               <Text style={[styles.tituloSecao, { color: theme.text }]}>Fluxo de caixa projetado</Text>
               <Text style={[styles.subtituloDiagnostico, { color: theme.textSecondary }]}>
-                Previsão cruzando receitas fixas com despesas e parcelas
+                Estimativa baseada no histórico recente
               </Text>
             </View>
           </View>
@@ -491,7 +490,7 @@ export const AnalyticsScreen: React.FC = () => {
             <View style={{ flex: 1 }}>
               <Text style={[styles.tituloSecao, { color: theme.text }]}>Comprometimento futuro</Text>
               <Text style={[styles.subtituloDiagnostico, { color: theme.textSecondary }]}>
-                Parcelas e contas fixas previstas para os próximos 6 meses
+                Despesas fixas e parcelas previstas
               </Text>
             </View>
           </View>
@@ -518,57 +517,6 @@ export const AnalyticsScreen: React.FC = () => {
                 </Text>
               </View>
             ))}
-          </View>
-        </View>
-      )}
-
-      {/* Maior Categoria de Despesa */}
-      {maiorSangria && maiorSangria.total > 0 && (
-        <View
-          style={[
-            styles.cardSangriaDestaque,
-            { backgroundColor: theme.card, borderColor: theme.cardBorder },
-          ]}
-        >
-          <View style={styles.cabecalhoSangriaDestaque}>
-            <View style={[styles.iconeFogo, { backgroundColor: theme.dangerLight }]}>
-              <Ionicons name="pie-chart-outline" size={20} color={theme.danger} />
-            </View>
-            <View style={{ flex: 1 }}>
-              <Text style={[styles.tagAlerta, { color: theme.textSecondary }]}>
-                Maior categoria do mês
-              </Text>
-              <Text style={[styles.tituloMaiorGasto, { color: theme.text }]}>
-                {maiorSangria.nome} concentra o maior volume de gastos
-              </Text>
-            </View>
-          </View>
-
-          <View style={styles.dadosSangria}>
-            <Text style={[styles.textoExplicativo, { color: theme.textSecondary }]}>
-              Representa <Text style={{ fontWeight: '800', color: theme.text }}>{maiorSangria.percentual.toFixed(1)}%</Text> das suas despesas do mês, somando{' '}
-              <Text style={{ fontWeight: '800', color: theme.danger }}>{formatarMoeda(maiorSangria.total)}</Text>.
-            </Text>
-
-            {variacaoSangria && (
-              <View style={[styles.boxVariacao, { backgroundColor: theme.inputBg }]}>
-                <Ionicons
-                  name={variacaoSangria.tipo === 'aumento' ? 'trending-up' : 'trending-down'}
-                  size={16}
-                  color={variacaoSangria.tipo === 'aumento' ? theme.danger : theme.success}
-                />
-                <Text
-                  style={[
-                    styles.textoBoxVariacao,
-                    { color: variacaoSangria.tipo === 'aumento' ? theme.danger : theme.success },
-                  ]}
-                >
-                  {variacaoSangria.tipo === 'aumento'
-                    ? `Cresceu ${variacaoSangria.texto} em relação ao mês anterior`
-                    : `Reduziu ${variacaoSangria.texto} em relação ao mês anterior`}
-                </Text>
-              </View>
-            )}
           </View>
         </View>
       )}
@@ -609,15 +557,11 @@ export const AnalyticsScreen: React.FC = () => {
         </Text>
 
         {rankingGastos.length === 0 ? (
-          <View style={[styles.containerVazio, { backgroundColor: theme.card, borderColor: theme.cardBorder }]}>
-            <Ionicons name="pie-chart-outline" size={42} color={theme.textMuted} />
-            <Text style={[styles.tituloVazio, { color: theme.text }]}>
-              Sem despesas para análise neste período
-            </Text>
-            <Text style={[styles.subtituloVazio, { color: theme.textSecondary }]}>
-              Adicione lançamentos de despesa para visualizar seu diagnóstico e gráficos.
-            </Text>
-          </View>
+          <EmptyState
+            icone="pie-chart-outline"
+            titulo="Sem despesas para análise neste período"
+            subtitulo="Adicione lançamentos de despesa para visualizar seu diagnóstico e gráficos."
+          />
         ) : (
           rankingGastos.map((cat, idx) => (
             <CategoryProgressBar
@@ -873,56 +817,6 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '800',
   },
-  cardSangriaDestaque: {
-    marginHorizontal: 16,
-    marginTop: 14,
-    padding: 16,
-    borderRadius: 18,
-    borderWidth: 1.5,
-  },
-  cabecalhoSangriaDestaque: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-    marginBottom: 10,
-  },
-  iconeFogo: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  tagAlerta: {
-    fontSize: 11,
-    fontWeight: '800',
-    textTransform: 'uppercase',
-    letterSpacing: 0.5,
-  },
-  tituloMaiorGasto: {
-    fontSize: 15,
-    fontWeight: '800',
-    marginTop: 2,
-  },
-  dadosSangria: {
-    marginTop: 4,
-  },
-  textoExplicativo: {
-    fontSize: 13,
-    lineHeight: 19,
-  },
-  boxVariacao: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    padding: 8,
-    borderRadius: 10,
-    marginTop: 10,
-    gap: 6,
-  },
-  textoBoxVariacao: {
-    fontSize: 12,
-    fontWeight: '700',
-  },
   cardGrafico: {
     marginHorizontal: 16,
     marginTop: 16,
@@ -960,22 +854,5 @@ const styles = StyleSheet.create({
   secaoRanking: {
     marginHorizontal: 16,
     marginTop: 20,
-  },
-  containerVazio: {
-    padding: 30,
-    borderRadius: 16,
-    borderWidth: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  tituloVazio: {
-    fontSize: 15,
-    fontWeight: '700',
-    marginTop: 10,
-  },
-  subtituloVazio: {
-    fontSize: 12,
-    textAlign: 'center',
-    marginTop: 4,
   },
 });

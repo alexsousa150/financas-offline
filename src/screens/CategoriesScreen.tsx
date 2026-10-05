@@ -1,3 +1,4 @@
+import { IoniconsName } from '../types';
 import React, { useState } from 'react';
 import {
   View,
@@ -95,7 +96,7 @@ export const CategoriesScreen: React.FC = () => {
           <View style={[styles.cardCategoria, { backgroundColor: theme.card, borderColor: theme.cardBorder }]}>
             <View style={styles.esquerda}>
               <View style={[styles.circuloIcone, { backgroundColor: item.cor + '22' }]}>
-                <Ionicons name={(item.icone as any) || 'pricetag-outline'} size={22} color={item.cor} />
+                <Ionicons name={(item.icone as IoniconsName) || 'pricetag-outline'} size={22} color={item.cor} />
               </View>
 
               <View style={styles.detalhes}>
@@ -200,7 +201,7 @@ export const CategoriesScreen: React.FC = () => {
                       onPress={() => executarMesclagem(dest.id)}
                     >
                       <View style={[styles.circuloPequeno, { backgroundColor: dest.cor + '25' }]}>
-                        <Ionicons name={(dest.icone as any) || 'pricetag'} size={16} color={dest.cor} />
+                        <Ionicons name={(dest.icone as IoniconsName) || 'pricetag'} size={16} color={dest.cor} />
                       </View>
                       <Text style={[styles.nomeDestino, { color: theme.text }]}>{dest.nome}</Text>
                       <Ionicons name="arrow-forward-circle-outline" size={18} color={theme.primary} />

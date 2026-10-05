@@ -150,13 +150,18 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   // Carrega configurações iniciais (Privacidade e Biometria)
   useEffect(() => {
     (async () => {
-      const priv = await settingsRepo.obterBooleano('modo_privacidade', false);
-      setModoPrivacidade(priv);
-
-      const bio = await settingsRepo.obterBooleano('biometria_habilitada', false);
-      setBiometriaHabilitadaState(bio);
-      if (bio) {
-        setAutenticado(false);
+      try {
+        const [priv, bio] = await Promise.all([
+          settingsRepo.obterBooleano('modo_privacidade', false),
+          settingsRepo.obterBooleano('biometria_habilitada', false)
+        ]);
+        setModoPrivacidade(priv);
+        setBiometriaHabilitadaState(bio);
+        if (bio) {
+          setAutenticado(false);
+        }
+      } catch (e) {
+        console.error('Erro ao inicializar configuracoes:', e);
       }
     })();
   }, [settingsRepo]);

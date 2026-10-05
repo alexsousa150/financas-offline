@@ -1,3 +1,4 @@
+import { IoniconsName } from '../types';
 import React, { useState, useEffect } from 'react';
 import {
   Modal,
@@ -133,7 +134,7 @@ export const CategoryModal: React.FC<CategoryModalProps> = ({
             {/* Pré-visualização do Badge */}
             <View style={styles.previewContainer}>
               <View style={[styles.previewIcone, { backgroundColor: cor + '25', borderColor: cor }]}>
-                <Ionicons name={icone as any} size={30} color={cor} />
+                <Ionicons name={icone as IoniconsName} size={30} color={cor} />
               </View>
               <Text style={[styles.previewTexto, { color: theme.text }]}>
                 {nome.trim() || 'Nome da Categoria'}
@@ -277,7 +278,7 @@ export const CategoryModal: React.FC<CategoryModalProps> = ({
                     icone === ic && { borderColor: cor, borderWidth: 2 },
                   ]}
                 >
-                  <Ionicons name={ic as any} size={22} color={icone === ic ? cor : theme.textSecondary} />
+                  <Ionicons name={ic as IoniconsName} size={22} color={icone === ic ? cor : theme.textSecondary} />
                 </TouchableOpacity>
               ))}
             </View>

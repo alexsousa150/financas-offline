@@ -1,3 +1,4 @@
+import { IoniconsName } from '../types';
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
   View,
@@ -854,7 +855,7 @@ export const SettingsScreen: React.FC = () => {
                   ]}
                 >
                   <Ionicons
-                    name={(fav.icone || fav.categoria_icone || 'pricetag-outline') as any}
+                    name={(fav.icone || fav.categoria_icone || 'pricetag-outline') as IoniconsName}
                     size={16}
                     color={fav.categoria_cor || theme.primary}
                   />
@@ -1200,7 +1201,7 @@ export const SettingsScreen: React.FC = () => {
                           ]}
                         >
                           <Ionicons
-                            name={(item.categoria_icone || 'pricetag-outline') as any}
+                            name={(item.categoria_icone || 'pricetag-outline') as IoniconsName}
                             size={18}
                             color={item.categoria_cor || theme.primary}
                           />

@@ -1,3 +1,4 @@
+import { IoniconsName } from '../types';
 import React, { useState, useEffect } from 'react';
 import {
   Modal,
@@ -291,7 +292,7 @@ export const RecurringModal: React.FC<RecurringModalProps> = ({ visivel, onFecha
                       },
                     ]}
                   >
-                    <Ionicons name={(c.icone as any) || 'pricetag'} size={15} color={categoriaId === c.id ? '#FFF' : c.cor} />
+                    <Ionicons name={(c.icone as IoniconsName) || 'pricetag'} size={15} color={categoriaId === c.id ? '#FFF' : c.cor} />
                     <Text style={{ color: categoriaId === c.id ? '#FFF' : theme.text, fontWeight: '700', fontSize: 12 }}>
                       {c.nome}
                     </Text>

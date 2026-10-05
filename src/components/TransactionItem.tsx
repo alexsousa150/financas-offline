@@ -1,3 +1,4 @@
+import { IoniconsName } from '../types';
 import React from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, Alert } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
@@ -14,7 +15,7 @@ interface TransactionItemProps {
   onAlternarPago?: (transacao: Transacao) => void;
 }
 
-export const TransactionItem: React.FC<TransactionItemProps> = ({
+export const TransactionItem: React.FC<TransactionItemProps> = React.memo(({
   transacao,
   onEditar,
   onDuplicar,
@@ -28,7 +29,7 @@ export const TransactionItem: React.FC<TransactionItemProps> = ({
   const sinal = isDespesa ? '-' : '+';
 
   const corCategoria = transacao.categoria_cor || '#868E96';
-  const iconeCategoria = (transacao.categoria_icone as any) || 'pricetag-outline';
+  const iconeCategoria = (transacao.categoria_icone as IoniconsName) || 'pricetag-outline';
 
   const isParcelado = Boolean(transacao.total_parcelas && transacao.total_parcelas > 1);
   const isPendente = transacao.pago === 0;
@@ -79,11 +80,16 @@ export const TransactionItem: React.FC<TransactionItemProps> = ({
     );
   };
 
-  const tituloPrincipal = transacao.descricao || transacao.categoria_nome || 'Sem descrição';
+  let tituloPrincipal = transacao.descricao || transacao.categoria_nome || 'Sem descrição';
+  if (isParcelado) {
+    tituloPrincipal += ` (${transacao.parcela_atual}/${transacao.total_parcelas})`;
+  }
   const subtitulo = transacao.descricao ? transacao.categoria_nome : null;
 
   return (
     <TouchableOpacity
+      accessibilityLabel={`${tituloPrincipal}, ${sinal} ${formatarMoeda(transacao.valor)}, ${isPendente ? 'pendente' : 'pago'}`}
+      accessibilityRole="button"
       activeOpacity={0.7}
       onPress={() => onEditar && onEditar(transacao)}
       onLongPress={abrirAcoesRapidas}
@@ -114,29 +120,6 @@ export const TransactionItem: React.FC<TransactionItemProps> = ({
             <Text style={[styles.data, { color: theme.textMuted }]}>
               {formatarDataBr(transacao.data)}
             </Text>
-
-            {transacao.forma_pagamento && transacao.forma_pagamento !== 'outro' && (
-              <View style={[styles.badgeFormaPagamento, { backgroundColor: theme.inputBg, borderColor: theme.inputBorder }]}>
-                <Text style={[styles.textoBadgeFormaPagamento, { color: theme.textSecondary }]}>
-                  {transacao.forma_pagamento === 'pix'
-                    ? 'Pix'
-                    : transacao.forma_pagamento === 'cartao_credito'
-                    ? 'Crédito'
-                    : transacao.forma_pagamento === 'cartao_debito'
-                    ? 'Débito'
-                    : 'Dinheiro'}
-                </Text>
-              </View>
-            )}
-
-            {isParcelado && (
-              <View style={[styles.badgeParcela, { backgroundColor: theme.primaryLight }]}>
-                <Ionicons name="card-outline" size={10} color={theme.primary} />
-                <Text style={[styles.textoBadgeParcela, { color: theme.primary }]}>
-                  {transacao.parcela_atual}/{transacao.total_parcelas}
-                </Text>
-              </View>
-            )}
           </View>
         </View>
       </View>
@@ -168,7 +151,7 @@ export const TransactionItem: React.FC<TransactionItemProps> = ({
       </View>
     </TouchableOpacity>
   );
-};
+});
 
 const styles = StyleSheet.create({
   container: {
@@ -218,31 +201,6 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: '500',
   },
-  badgeFormaPagamento: {
-    paddingHorizontal: 5,
-    paddingVertical: 1,
-    borderRadius: 5,
-    borderWidth: 1,
-    marginLeft: 4,
-  },
-  textoBadgeFormaPagamento: {
-    fontSize: 9,
-    fontWeight: '700',
-    textTransform: 'uppercase',
-  },
-  badgeParcela: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 6,
-    paddingVertical: 1,
-    borderRadius: 6,
-    gap: 2,
-    marginLeft: 4,
-  },
-  textoBadgeParcela: {
-    fontSize: 10,
-    fontWeight: '800',
-  },
   badgePendente: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -276,3 +234,5 @@ const styles = StyleSheet.create({
     marginBottom: 6,
   },
 });
+
+TransactionItem.displayName = 'TransactionItem';

@@ -17,6 +17,7 @@ import { Transacao, TipoTransacao, FormaPagamento } from '../types';
 import { TransactionItem } from '../components/TransactionItem';
 import { MonthSelector } from '../components/MonthSelector';
 import { formatarDataExtenso, formatarMoeda, somarMoeda, subtrairMoeda } from '../utils/formatters';
+import EmptyState from '../components/EmptyState';
 
 interface GrupoDia {
   data: string;
@@ -105,6 +106,17 @@ export const HistoryScreen: React.FC = () => {
   useEffect(() => {
     carregarTransacoes();
   }, [carregarTransacoes]);
+
+  const handleAlternarPago = useCallback(async (lancamento: Transacao) => {
+    await alternarStatusPago(lancamento.id, lancamento.pago === 0 ? 1 : 0);
+    await carregarTransacoes();
+  }, [alternarStatusPago, carregarTransacoes]);
+
+  const handleExcluir = useCallback(async (lancamento: Transacao, excluirTodoGrupo?: boolean) => {
+    await transactionsRepo.excluir(lancamento.id, excluirTodoGrupo);
+    await notificarMudancaDados();
+    await carregarTransacoes();
+  }, [transactionsRepo, notificarMudancaDados, carregarTransacoes]);
 
   // Agrupamento por dia
   const gruposPorDia = useMemo(() => {
@@ -438,13 +450,11 @@ export const HistoryScreen: React.FC = () => {
           ) : null
         }
         ListEmptyComponent={
-          <View style={[styles.containerVazio, { backgroundColor: theme.card, borderColor: theme.cardBorder }]}>
-            <Ionicons name="file-tray-outline" size={48} color={theme.textMuted} />
-            <Text style={[styles.tituloVazio, { color: theme.text }]}>Nenhum lançamento encontrado</Text>
-            <Text style={[styles.subtituloVazio, { color: theme.textSecondary }]}>
-              Tente alterar os filtros ou adicione uma nova transação.
-            </Text>
-          </View>
+          <EmptyState
+            icone="file-tray-outline"
+            titulo="Nenhum lançamento encontrado"
+            subtitulo="Tente alterar os filtros ou adicione uma nova transação."
+          />
         }
         renderItem={({ item }) => (
           <View style={styles.grupoDiaContainer}>
@@ -469,15 +479,8 @@ export const HistoryScreen: React.FC = () => {
                 transacao={t}
                 onEditar={abrirModalEditarLancamento}
                 onDuplicar={abrirModalDuplicarLancamento}
-                onAlternarPago={async (lancamento) => {
-                  await alternarStatusPago(lancamento.id, lancamento.pago === 0 ? 1 : 0);
-                  await carregarTransacoes();
-                }}
-                onExcluir={async (lancamento, excluirTodoGrupo) => {
-                  await transactionsRepo.excluir(lancamento.id, excluirTodoGrupo);
-                  await notificarMudancaDados();
-                  await carregarTransacoes();
-                }}
+                onAlternarPago={handleAlternarPago}
+                onExcluir={handleExcluir}
               />
             ))}
           </View>
@@ -580,23 +583,5 @@ const styles = StyleSheet.create({
   totalDia: {
     fontSize: 13,
     fontWeight: '800',
-  },
-  containerVazio: {
-    padding: 40,
-    borderRadius: 16,
-    borderWidth: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginTop: 30,
-  },
-  tituloVazio: {
-    fontSize: 16,
-    fontWeight: '700',
-    marginTop: 12,
-  },
-  subtituloVazio: {
-    fontSize: 13,
-    textAlign: 'center',
-    marginTop: 6,
   },
 });
