@@ -142,11 +142,13 @@ export class TransactionsRepository {
 
   async criar(transacao: Omit<Transacao, 'id'>): Promise<number> {
     const result = await this.db.runAsync(
-      `INSERT INTO transacoes (valor, tipo, categoria_id, data, descricao, conciliado, origem, pago, parcela_atual, total_parcelas, grupo_parcelamento_id, forma_pagamento)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);`,
+      `INSERT INTO transacoes (valor, tipo, categoria_id, conta_id, cartao_id, data, descricao, conciliado, origem, pago, parcela_atual, total_parcelas, grupo_parcelamento_id, forma_pagamento)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);`,
       transacao.valor,
       transacao.tipo,
       transacao.categoria_id,
+      transacao.conta_id ?? null,
+      transacao.cartao_id ?? null,
       transacao.data,
       transacao.descricao || '',
       transacao.conciliado ? 1 : 0,
@@ -211,11 +213,13 @@ export class TransactionsRepository {
         const statusPago = p === 1 ? (transacaoBase.pago !== undefined ? (transacaoBase.pago ? 1 : 0) : 1) : 0;
 
         const result = await this.db.runAsync(
-          `INSERT INTO transacoes (valor, tipo, categoria_id, data, descricao, conciliado, origem, pago, parcela_atual, total_parcelas, grupo_parcelamento_id, forma_pagamento)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);`,
+          `INSERT INTO transacoes (valor, tipo, categoria_id, conta_id, cartao_id, data, descricao, conciliado, origem, pago, parcela_atual, total_parcelas, grupo_parcelamento_id, forma_pagamento)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);`,
           valorDestaParcela,
           transacaoBase.tipo,
           transacaoBase.categoria_id,
+          transacaoBase.conta_id ?? null,
+          transacaoBase.cartao_id ?? null,
           dataParcelaIso,
           descricaoComParcela,
           0,
@@ -249,6 +253,14 @@ export class TransactionsRepository {
     if (transacao.categoria_id !== undefined) {
       campos.push('categoria_id = ?');
       params.push(transacao.categoria_id);
+    }
+    if (transacao.conta_id !== undefined) {
+      campos.push('conta_id = ?');
+      params.push(transacao.conta_id);
+    }
+    if (transacao.cartao_id !== undefined) {
+      campos.push('cartao_id = ?');
+      params.push(transacao.cartao_id);
     }
     if (transacao.data !== undefined) {
       campos.push('data = ?');
@@ -421,11 +433,13 @@ export class TransactionsRepository {
     await this.db.withTransactionAsync(async () => {
       for (const t of transacoes) {
         await this.db.runAsync(
-          `INSERT INTO transacoes (valor, tipo, categoria_id, data, descricao, conciliado, origem, pago, parcela_atual, total_parcelas, grupo_parcelamento_id)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);`,
+          `INSERT INTO transacoes (valor, tipo, categoria_id, conta_id, cartao_id, data, descricao, conciliado, origem, pago, parcela_atual, total_parcelas, grupo_parcelamento_id, forma_pagamento, codigo_bancario_hash)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);`,
           t.valor,
           t.tipo,
           t.categoria_id,
+          t.conta_id ?? null,
+          t.cartao_id ?? null,
           t.data,
           t.descricao || '',
           t.conciliado ? 1 : 0,
@@ -433,7 +447,9 @@ export class TransactionsRepository {
           t.pago !== undefined ? (t.pago ? 1 : 0) : 1,
           t.parcela_atual ?? null,
           t.total_parcelas ?? null,
-          t.grupo_parcelamento_id ?? null
+          t.grupo_parcelamento_id ?? null,
+          t.forma_pagamento || 'outro',
+          t.codigo_bancario_hash ?? null
         );
         totalInseridos++;
       }
@@ -462,7 +478,7 @@ export class TransactionsRepository {
          SUM(CASE WHEN tipo = 'receita' THEN valor ELSE 0 END) as receitas,
          SUM(CASE WHEN tipo = 'despesa' THEN valor ELSE 0 END) as despesas,
          SUM(CASE WHEN tipo = 'receita' AND pago = 1 THEN valor ELSE 0 END) as receitasRealizadas,
-         SUM(CASE WHEN tipo = 'despesa' AND pago = 1 THEN valor ELSE 0 END) as despesasRealizadas,
+         SUM(CASE WHEN tipo = 'despesa' AND pago = 1 AND cartao_id IS NULL THEN valor ELSE 0 END) as despesasRealizadas,
          SUM(CASE WHEN tipo = 'receita' AND pago = 0 THEN valor ELSE 0 END) as receitasPendentes,
          SUM(CASE WHEN tipo = 'despesa' AND pago = 0 THEN valor ELSE 0 END) as despesasPendentes,
          COUNT(CASE WHEN tipo = 'despesa' AND pago = 0 THEN 1 END) as contasPendentesQtd

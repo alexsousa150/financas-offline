@@ -75,6 +75,7 @@ export class ReconciliationService {
         jaConciliado,
         transacaoCorrespondenteId: correspondente ? correspondente.id : undefined,
         selecionadoParaImportar: !jaConciliado,
+        hashBancario: item.fitId || `${item.data}-${item.valor}-${item.descricao}`,
       });
     }
 

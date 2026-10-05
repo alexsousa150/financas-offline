@@ -10,6 +10,28 @@ export type TipoGasto = 'essencial' | 'estilo_de_vida' | 'poupanca';
 
 export type FormaPagamento = 'pix' | 'cartao_credito' | 'cartao_debito' | 'dinheiro' | 'outro';
 
+export type TipoConta = 'corrente' | 'carteira' | 'poupanca' | 'beneficio';
+
+export interface Conta {
+  id: number;
+  nome: string;
+  tipo: TipoConta;
+  saldo_inicial: number;
+  cor?: string;
+  icone?: string;
+}
+
+export interface Cartao {
+  id: number;
+  nome: string;
+  limite: number;
+  dia_vencimento: number;
+  dia_fechamento: number;
+  conta_pagamento_id?: number;
+  cor?: string;
+  icone?: string;
+}
+
 export interface Categoria {
   id: number;
   nome: string;
@@ -36,6 +58,11 @@ export interface Transacao {
   total_parcelas?: number | null; // Ex: 3
   grupo_parcelamento_id?: string | null; // UUID ou ID comum para identificar o grupo da compra parcelada
   forma_pagamento?: FormaPagamento;
+  conta_id?: number | null;
+  conta_destino_id?: number | null;
+  cartao_id?: number | null;
+  codigo_bancario_hash?: string | null;
+  anexo_uri?: string | null;
   deleted_at?: string | null;
   created_at?: string;
   // Campos populados via JOIN
@@ -75,6 +102,7 @@ export interface TransacaoExtratoPendente {
   jaConciliado: boolean;
   transacaoCorrespondenteId?: number;
   selecionadoParaImportar: boolean;
+  hashBancario?: string;
 }
 
 export interface ItemExtratoBruto {

@@ -213,6 +213,71 @@ export async function inicializarBanco(db: SQLiteDatabase): Promise<void> {
     }
   });
 
+  // Migração 6: Suporte a Múltiplas Contas, Cartões de Crédito e Conciliação
+  await executarMigracao(6, 'Estrutura para Contas, Cartoes, Conciliacao e Anexos', async () => {
+    try {
+      // 1. Criação das novas tabelas
+      await db.execAsync(`
+        CREATE TABLE IF NOT EXISTS contas (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          nome TEXT NOT NULL,
+          tipo TEXT NOT NULL DEFAULT 'corrente',
+          saldo_inicial REAL DEFAULT 0,
+          cor TEXT,
+          icone TEXT
+        );
+
+        CREATE TABLE IF NOT EXISTS cartoes (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          nome TEXT NOT NULL,
+          limite REAL NOT NULL,
+          dia_vencimento INTEGER NOT NULL,
+          dia_fechamento INTEGER NOT NULL,
+          conta_pagamento_id INTEGER REFERENCES contas(id),
+          cor TEXT,
+          icone TEXT
+        );
+      `);
+
+      // 2. Modificações na tabela de transações
+      const colunasTransacoes = await db.getAllAsync<{ name: string }>('PRAGMA table_info(transacoes);');
+      const nomesTransacoes = new Set(colunasTransacoes.map((c) => c.name.toLowerCase()));
+
+      if (!nomesTransacoes.has('conta_id')) {
+        await db.execAsync('ALTER TABLE transacoes ADD COLUMN conta_id INTEGER REFERENCES contas(id);');
+      }
+      if (!nomesTransacoes.has('conta_destino_id')) {
+        await db.execAsync('ALTER TABLE transacoes ADD COLUMN conta_destino_id INTEGER REFERENCES contas(id);');
+      }
+      if (!nomesTransacoes.has('cartao_id')) {
+        await db.execAsync('ALTER TABLE transacoes ADD COLUMN cartao_id INTEGER REFERENCES cartoes(id);');
+      }
+      if (!nomesTransacoes.has('codigo_bancario_hash')) {
+        await db.execAsync('ALTER TABLE transacoes ADD COLUMN codigo_bancario_hash TEXT UNIQUE;');
+      }
+      if (!nomesTransacoes.has('anexo_uri')) {
+        await db.execAsync('ALTER TABLE transacoes ADD COLUMN anexo_uri TEXT;');
+      }
+
+      // 3. Semeia uma Conta Padrão se não existir nenhuma
+      const contasCount = await db.getFirstAsync<{ count: number }>('SELECT COUNT(*) as count FROM contas;');
+      if (!contasCount || contasCount.count === 0) {
+        await db.runAsync(
+          'INSERT INTO contas (nome, tipo, saldo_inicial, cor, icone) VALUES (?, ?, ?, ?, ?);',
+          'Carteira Principal', 'corrente', 0, '#3b82f6', 'wallet'
+        );
+      }
+
+      // 4. Vincula as transações legadas à conta principal recém-criada (onde conta_id e cartao_id forem null)
+      await db.execAsync(
+        'UPDATE transacoes SET conta_id = (SELECT id FROM contas ORDER BY id ASC LIMIT 1) WHERE conta_id IS NULL AND cartao_id IS NULL;'
+      );
+
+    } catch (e) {
+      console.warn('Migração 6 falhou:', e);
+    }
+  });
+
   // 5. Verifica se categorias padrão já existem, se não, semeia
   const categoriasContagem = await db.getFirstAsync<{ count: number }>(
     'SELECT COUNT(*) as count FROM categorias;'

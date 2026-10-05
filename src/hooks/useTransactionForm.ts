@@ -49,6 +49,8 @@ export function useTransactionForm({
   const [lembreteAtivo, setLembreteAtivo] = useState(false);
   const [pago, setPago] = useState(true);
   const [formaPagamento, setFormaPagamento] = useState<FormaPagamento>('outro');
+  const [contaId, setContaId] = useState<number | null>(1);
+  const [cartaoId, setCartaoId] = useState<number | null>(null);
   const [mostrarDiasCustom, setMostrarDiasCustom] = useState(false);
   const [dataInputTexto, setDataInputTexto] = useState('');
   const [isParcelado, setIsParcelado] = useState(false);
@@ -72,6 +74,8 @@ export function useTransactionForm({
         setDescricao(transacaoParaEdicao.descricao || '');
         setPago(transacaoParaEdicao.pago !== 0);
         setFormaPagamento(transacaoParaEdicao.forma_pagamento || 'outro');
+        setContaId(transacaoParaEdicao.conta_id ?? null);
+        setCartaoId(transacaoParaEdicao.cartao_id ?? null);
         setIsParcelado(false);
       } else if (transacaoParaDuplicacao) {
         setTipo(transacaoParaDuplicacao.tipo);
@@ -84,6 +88,8 @@ export function useTransactionForm({
         setDescricao(transacaoParaDuplicacao.descricao ? `${transacaoParaDuplicacao.descricao} (Cópia)` : '');
         setPago(true);
         setFormaPagamento(transacaoParaDuplicacao.forma_pagamento || 'outro');
+        setContaId(transacaoParaDuplicacao.conta_id ?? null);
+        setCartaoId(transacaoParaDuplicacao.cartao_id ?? null);
         setIsParcelado(false);
       } else {
         setTipo(tipoInicial || 'despesa');
@@ -94,6 +100,8 @@ export function useTransactionForm({
         setDescricao('');
         setPago(true);
         setFormaPagamento('pix');
+        setContaId(1);
+        setCartaoId(null);
         setIsParcelado(false);
         setNumeroParcelas(3);
         if (categorias.length > 0) {
@@ -194,6 +202,8 @@ export function useTransactionForm({
           valor: valorNumerico,
           tipo,
           categoria_id: categoriaId,
+          conta_id: contaId,
+          cartao_id: cartaoId,
           data: dataIso,
           descricao: descricao.trim(),
           pago: pago ? 1 : 0,
@@ -205,6 +215,8 @@ export function useTransactionForm({
             valor: valorNumerico,
             tipo,
             categoria_id: categoriaId,
+            conta_id: contaId,
+            cartao_id: cartaoId,
             data: dataIso,
             descricao: descricao.trim(),
             conciliado: 0,
@@ -220,6 +232,8 @@ export function useTransactionForm({
           valor: valorNumerico,
           tipo,
           categoria_id: categoriaId,
+          conta_id: contaId,
+          cartao_id: cartaoId,
           data: dataIso,
           descricao: descricao.trim(),
           conciliado: 0,
@@ -251,6 +265,8 @@ export function useTransactionForm({
     tipo, setTipo,
     valorTextoCentavos, setValorTextoCentavos,
     categoriaId, setCategoriaId,
+    contaId, setContaId,
+    cartaoId, setCartaoId,
     dataIso, setDataIso,
     descricao, setDescricao,
     salvando,

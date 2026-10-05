@@ -23,6 +23,7 @@ export const ImportScreen: React.FC = () => {
   const { theme } = useTheme();
   const {
     categorias,
+    contas,
     reconciliationService,
     transactionsRepo,
     learningRepo,
@@ -36,6 +37,7 @@ export const ImportScreen: React.FC = () => {
   const [formatoDetectado, setFormatoDetectado] = useState<'OFX' | 'CSV' | null>(null);
   const [itensPendentes, setItensPendentes] = useState<TransacaoExtratoPendente[]>([]);
   const [categoriaModalItem, setCategoriaModalItem] = useState<TransacaoExtratoPendente | null>(null);
+  const [contaSelecionadaId, setContaSelecionadaId] = useState<number>(contas[0]?.id || 1);
 
   const selecionarArquivo = async () => {
     try {
@@ -159,6 +161,8 @@ export const ImportScreen: React.FC = () => {
         descricao: item.descricao,
         conciliado: item.jaConciliado ? 1 : 0,
         origem: 'importado' as const,
+        conta_id: contaSelecionadaId,
+        codigo_bancario_hash: item.hashBancario,
       }));
 
       const totalInseridos = await transactionsRepo.inserirEmLote(transacoesParaInserir);
@@ -390,6 +394,45 @@ export const ImportScreen: React.FC = () => {
                 <Text style={[styles.linkSelecao, { color: theme.textMuted }]}>Desmarcar Todos</Text>
               </TouchableOpacity>
             </View>
+          </View>
+
+          {/* Seletor de Conta */}
+          <View style={{ marginBottom: 12, paddingHorizontal: 16 }}>
+            <Text style={{ fontSize: 13, fontWeight: '700', color: theme.text, marginBottom: 8 }}>
+              Vincular à conta:
+            </Text>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+              {contas.map((c) => {
+                const isSelected = contaSelecionadaId === c.id;
+                return (
+                  <TouchableOpacity
+                    key={c.id}
+                    onPress={() => setContaSelecionadaId(c.id)}
+                    style={{
+                      flexDirection: 'row',
+                      alignItems: 'center',
+                      paddingHorizontal: 12,
+                      paddingVertical: 6,
+                      borderRadius: 16,
+                      borderWidth: 1,
+                      borderColor: isSelected ? theme.primary : theme.inputBorder,
+                      backgroundColor: isSelected ? theme.primary + '15' : theme.card,
+                      marginRight: 8,
+                    }}
+                  >
+                    <Ionicons 
+                      name={(c.icone as any) || 'wallet-outline'} 
+                      size={16} 
+                      color={isSelected ? theme.primary : theme.textSecondary} 
+                      style={{ marginRight: 6 }} 
+                    />
+                    <Text style={{ fontSize: 13, fontWeight: isSelected ? '700' : '500', color: isSelected ? theme.primary : theme.textSecondary }}>
+                      {c.nome}
+                    </Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </ScrollView>
           </View>
 
           {/* Lista de Itens do Extrato para Revisão */}

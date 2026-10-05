@@ -3,6 +3,8 @@ import { AppState, AppStateStatus } from 'react-native';
 import { useSQLiteContext } from 'expo-sqlite';
 import { CategoriesRepository } from '../database/categoriesRepo';
 import { TransactionsRepository } from '../database/transactionsRepo';
+import { ContasRepository } from '../database/contasRepo';
+import { CartoesRepository } from '../database/cartoesRepo';
 import { BackupRepository, StatusBackupInfo } from '../database/backupRepo';
 import { SettingsRepository } from '../database/settingsRepo';
 import { RecurringRepository } from '../database/recurringRepo';
@@ -13,6 +15,8 @@ import { PdfReportService } from '../services/pdfReportService';
 import {
   Categoria,
   Transacao,
+  Conta,
+  Cartao,
   ResumoFinanceiro,
   RankingCategoria,
   TetoDiarioInfo,
@@ -28,6 +32,8 @@ interface AppContextType {
   // Repositórios
   categoriesRepo: CategoriesRepository;
   transactionsRepo: TransactionsRepository;
+  contasRepo: ContasRepository;
+  cartoesRepo: CartoesRepository;
   backupRepo: BackupRepository;
   settingsRepo: SettingsRepository;
   recurringRepo: RecurringRepository;
@@ -40,6 +46,14 @@ interface AppContextType {
   setMesSelecionado: (mesAno: string) => void;
   categorias: Categoria[];
   carregarCategorias: () => Promise<void>;
+
+  contas: Conta[];
+  setContas: React.Dispatch<React.SetStateAction<Conta[]>>;
+  carregarContas: () => Promise<void>;
+
+  cartoes: Cartao[];
+  setCartoes: React.Dispatch<React.SetStateAction<Cartao[]>>;
+  carregarCartoes: () => Promise<void>;
 
   // Favoritos (Lançamento Rápido com 1 toque)
   favoritos: Favorito[];
@@ -105,6 +119,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const [categoriesRepo] = useState(() => new CategoriesRepository(db));
   const [transactionsRepo] = useState(() => new TransactionsRepository(db));
+  const contasRepo = React.useMemo(() => new ContasRepository(db), [db]);
+  const cartoesRepo = React.useMemo(() => new CartoesRepository(db), [db]);
   const [backupRepo] = useState(() => new BackupRepository(db));
   const [settingsRepo] = useState(() => new SettingsRepository(db));
   const [recurringRepo] = useState(() => new RecurringRepository(db));
@@ -114,6 +130,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const [mesSelecionado, setMesSelecionado] = useState<string>(getMesAnoAtualIso());
   const [categorias, setCategorias] = useState<Categoria[]>([]);
+  const [contas, setContas] = useState<Conta[]>([]);
+  const [cartoes, setCartoes] = useState<Cartao[]>([]);
   const [favoritos, setFavoritos] = useState<Favorito[]>([]);
   const [statusBackup, setStatusBackup] = useState<StatusBackupInfo>({
     precisaBackup: false,
@@ -228,6 +246,24 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
   }, [categoriesRepo]);
 
+  const carregarContas = useCallback(async () => {
+    try {
+      const lista = await contasRepo.buscarTodas();
+      setContas(lista);
+    } catch (e) {
+      console.error('Erro ao carregar contas:', e);
+    }
+  }, [contasRepo]);
+
+  const carregarCartoes = useCallback(async () => {
+    try {
+      const lista = await cartoesRepo.buscarTodos();
+      setCartoes(lista);
+    } catch (e) {
+      console.error('Erro ao carregar cartoes:', e);
+    }
+  }, [cartoesRepo]);
+
   const carregarFavoritos = useCallback(async () => {
     try {
       const lista = await favoritesRepo.listar();
@@ -324,17 +360,19 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const notificarMudancaDados = useCallback(async () => {
-    await Promise.all([carregarCategorias(), carregarFavoritos(), carregarDadosPainel(), carregarStatusBackup()]);
-  }, [carregarCategorias, carregarFavoritos, carregarDadosPainel, carregarStatusBackup]);
+    await Promise.all([carregarCategorias(), carregarContas(), carregarCartoes(), carregarFavoritos(), carregarDadosPainel(), carregarStatusBackup()]);
+  }, [carregarCategorias, carregarContas, carregarCartoes, carregarFavoritos, carregarDadosPainel, carregarStatusBackup]);
 
   useEffect(() => {
     carregarCategorias();
+    carregarContas();
+    carregarCartoes();
     carregarFavoritos();
     carregarStatusBackup();
     transactionsRepo.expurgarLixeiraAntiga(30).catch((e) => {
       console.error('Erro ao expurgar lixeira antiga:', e);
     });
-  }, [carregarCategorias, carregarFavoritos, carregarStatusBackup, transactionsRepo]);
+  }, [carregarCategorias, carregarContas, carregarCartoes, carregarFavoritos, carregarStatusBackup, transactionsRepo]);
 
   useEffect(() => {
     carregarDadosPainel();
@@ -346,6 +384,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         ...modais,
         categoriesRepo,
         transactionsRepo,
+        contasRepo,
+        cartoesRepo,
         backupRepo,
         settingsRepo,
         recurringRepo,
@@ -359,6 +399,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         },
         categorias,
         carregarCategorias,
+        contas,
+        setContas,
+        carregarContas,
+        cartoes,
+        setCartoes,
+        carregarCartoes,
         favoritos,
         carregarFavoritos,
         executarLancamentoFavorito,
