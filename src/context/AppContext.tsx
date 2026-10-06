@@ -44,6 +44,7 @@ interface AppContextType {
   favoritesRepo: FavoritesRepository;
   learningRepo: LearningRepository;
   reconciliationService: ReconciliationService;
+  creditCardEngine: CreditCardEngine;
 
   // Estado do Mês
   mesSelecionado: string; // YYYY-MM
@@ -71,15 +72,7 @@ interface AppContextType {
   // Relatório PDF
   exportarRelatorioPdfMes: (mesAno: string) => Promise<void>;
 
-  // Resumos e dados do mês selecionado
-  resumoMes: ResumoFinanceiro;
-  rankingGastos: RankingCategoria[];
-  transacoesRecentes: Transacao[];
-  faturasPendentes: FaturaCartao[];
-  tetoDiario: TetoDiarioInfo | null;
-  analiseEssencial: AnaliseEssencialVsEstilo | null;
-  carregarDadosPainel: () => Promise<void>;
-  carregarFaturasPendentes: () => Promise<void>;
+  refreshKey: number;
   pagarFatura: (faturaId: number, contaId: number) => Promise<void>;
   alternarStatusPago: (id: number, novoStatus: number) => Promise<void>;
 
@@ -148,24 +141,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     novosLancamentos: 0,
     ultimoBackupEm: null,
   });
-
-  const [resumoMes, setResumoMes] = useState<ResumoFinanceiro>({
-    receitas: 0,
-    despesas: 0,
-    saldo: 0,
-    saldoRealizado: 0,
-    receitasRealizadas: 0,
-    despesasRealizadas: 0,
-    receitasPendentes: 0,
-    despesasPendentes: 0,
-    contasPendentesQtd: 0,
-    contasPendentesValor: 0,
-  });
-  const [rankingGastos, setRankingGastos] = useState<RankingCategoria[]>([]);
-  const [transacoesRecentes, setTransacoesRecentes] = useState<Transacao[]>([]);
-  const [faturasPendentes, setFaturasPendentes] = useState<FaturaCartao[]>([]);
-  const [tetoDiario, setTetoDiario] = useState<TetoDiarioInfo | null>(null);
-  const [analiseEssencial, setAnaliseEssencial] = useState<AnaliseEssencialVsEstilo | null>(null);
+  const [refreshKey, setRefreshKey] = useState(0);
 
   // Privacidade e Biometria
   const [modoPrivacidade, setModoPrivacidade] = useState(false);
@@ -337,47 +313,15 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
   };
 
-  const carregarDadosPainel = useCallback(async () => {
-    try {
-      await creditCardEngine.processarFechamentos();
-      await recurringRepo.processarRecorrentesDoMes(mesSelecionado);
-
-      const [resumo, ranking, recentes, teto, analise] = await Promise.all([
-        transactionsRepo.obterResumoMes(mesSelecionado),
-        transactionsRepo.obterRankingCategorias(mesSelecionado, 'despesa'),
-        transactionsRepo.listar({ mesAno: mesSelecionado, limite: 8 }),
-        transactionsRepo.obterTetoDiario(mesSelecionado),
-        transactionsRepo.obterAnaliseEssencialVsEstilo(mesSelecionado),
-      ]);
-      setResumoMes(resumo);
-      setRankingGastos(ranking);
-      setTransacoesRecentes(recentes);
-      setTetoDiario(teto);
-      setAnaliseEssencial(analise);
-      await carregarStatusBackup();
-    } catch (e) {
-      console.error('Erro ao carregar painel:', e);
-    }
-  }, [transactionsRepo, recurringRepo, mesSelecionado, carregarStatusBackup]);
-
   const alternarStatusPago = async (id: number, novoStatus: number) => {
     try {
       AppHaptics.toqueSucesso();
       await transactionsRepo.alternarStatusPago(id, novoStatus);
-      await carregarDadosPainel();
+      await notificarMudancaDados();
     } catch (e) {
       console.error('Erro ao alternar status pago:', e);
     }
   };
-
-  const carregarFaturasPendentes = useCallback(async () => {
-    try {
-      const faturas = await faturasRepo.buscarPorStatus('fechada');
-      setFaturasPendentes(faturas);
-    } catch (e) {
-      console.error('Erro ao carregar faturas pendentes:', e);
-    }
-  }, [faturasRepo]);
 
   const pagarFatura = async (faturaId: number, contaId: number) => {
     try {
@@ -390,8 +334,15 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const notificarMudancaDados = useCallback(async () => {
-    await Promise.all([carregarCategorias(), carregarContas(), carregarCartoes(), carregarFavoritos(), carregarDadosPainel(), carregarStatusBackup(), carregarFaturasPendentes()]);
-  }, [carregarCategorias, carregarContas, carregarCartoes, carregarFavoritos, carregarDadosPainel, carregarStatusBackup, carregarFaturasPendentes]);
+    setRefreshKey(prev => prev + 1);
+    await Promise.all([
+      carregarCategorias(),
+      carregarContas(),
+      carregarCartoes(),
+      carregarFavoritos(),
+      carregarStatusBackup(),
+    ]);
+  }, [carregarCategorias, carregarContas, carregarCartoes, carregarFavoritos, carregarStatusBackup]);
 
   useEffect(() => {
     carregarCategorias();
@@ -399,15 +350,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     carregarCartoes();
     carregarFavoritos();
     carregarStatusBackup();
-    carregarFaturasPendentes();
     transactionsRepo.expurgarLixeiraAntiga(30).catch((e) => {
       console.error('Erro ao expurgar lixeira antiga:', e);
     });
-  }, [carregarCategorias, carregarContas, carregarCartoes, carregarFavoritos, carregarStatusBackup, carregarFaturasPendentes, transactionsRepo]);
-
-  useEffect(() => {
-    carregarDadosPainel();
-  }, [carregarDadosPainel, mesSelecionado]);
+  }, [carregarCategorias, carregarContas, carregarCartoes, carregarFavoritos, carregarStatusBackup, transactionsRepo]);
 
   return (
     <AppContext.Provider
@@ -424,6 +370,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         favoritesRepo,
         learningRepo,
         reconciliationService,
+        creditCardEngine,
         mesSelecionado,
         setMesSelecionado: (m) => {
           AppHaptics.toqueSelecao();
@@ -443,14 +390,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         statusBackup,
         carregarStatusBackup,
         exportarRelatorioPdfMes,
-        resumoMes,
-        rankingGastos,
-        transacoesRecentes,
-        faturasPendentes,
-        tetoDiario,
-        analiseEssencial,
-        carregarDadosPainel,
-        carregarFaturasPendentes,
+        refreshKey,
         pagarFatura,
         alternarStatusPago,
         modoPrivacidade,

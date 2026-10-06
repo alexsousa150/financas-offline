@@ -17,7 +17,7 @@ import { MonthSelector } from '../components/MonthSelector';
 import { DonutChart, FatiaGrafico } from '../components/DonutChart';
 import { CategoryProgressBar } from '../components/CategoryProgressBar';
 import { formatarMoeda } from '../utils/formatters';
-import { ComprometimentoFuturo, ProjecaoFluxoMes, AnomaliaGasto } from '../types';
+import { ComprometimentoFuturo, ProjecaoFluxoMes, AnomaliaGasto, ResumoFinanceiro, RankingCategoria, AnaliseEssencialVsEstilo } from '../types';
 import EmptyState from '../components/EmptyState';
 
 export const AnalyticsScreen: React.FC = () => {
@@ -25,13 +25,38 @@ export const AnalyticsScreen: React.FC = () => {
   const {
     mesSelecionado,
     setMesSelecionado,
-    resumoMes,
-    rankingGastos,
-    analiseEssencial,
     transactionsRepo,
-    carregarDadosPainel,
     exportarRelatorioPdfMes,
+    refreshKey,
   } = useApp();
+
+  
+  const [resumoMes, setResumoMes] = useState<ResumoFinanceiro>({
+    receitas: 0, despesas: 0, saldo: 0, saldoRealizado: 0, receitasRealizadas: 0,
+    despesasRealizadas: 0, receitasPendentes: 0, despesasPendentes: 0,
+    contasPendentesQtd: 0, contasPendentesValor: 0
+  });
+  const [rankingGastos, setRankingGastos] = useState<RankingCategoria[]>([]);
+  const [analiseEssencial, setAnaliseEssencial] = useState<AnaliseEssencialVsEstilo | null>(null);
+
+  const carregarDadosLocais = useCallback(async () => {
+    try {
+      const [resumo, ranking, analise] = await Promise.all([
+        transactionsRepo.obterResumoMes(mesSelecionado),
+        transactionsRepo.obterRankingCategorias(mesSelecionado, 'despesa'),
+        transactionsRepo.obterAnaliseEssencialVsEstilo(mesSelecionado),
+      ]);
+      setResumoMes(resumo);
+      setRankingGastos(ranking);
+      setAnaliseEssencial(analise);
+    } catch (e) {
+      console.error('Erro ao carregar analises:', e);
+    }
+  }, [mesSelecionado, transactionsRepo]);
+
+  useEffect(() => {
+    carregarDadosLocais();
+  }, [carregarDadosLocais, refreshKey]);
 
   const [atualizando, setAtualizando] = useState(false);
   const [gerandoPdf, setGerandoPdf] = useState(false);
@@ -72,7 +97,7 @@ export const AnalyticsScreen: React.FC = () => {
 
   const onRefresh = async () => {
     setAtualizando(true);
-    await Promise.all([carregarDadosPainel(), carregarDadosExtras()]);
+    await Promise.all([carregarDadosLocais(), carregarDadosExtras()]);
     setAtualizando(false);
   };
 

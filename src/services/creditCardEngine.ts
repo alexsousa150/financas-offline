@@ -139,7 +139,8 @@ export class CreditCardEngine {
       conciliado: 1,
       categoria_id: 1, // Default ID
       data: new Date().toISOString().split('T')[0],
-      origem: 'manual'
+      origem: 'manual',
+      is_transfer: 1
     });
   }
 }

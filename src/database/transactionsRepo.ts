@@ -314,20 +314,18 @@ export class TransactionsRepository {
   }
 
   async excluir(id: number, excluirTodasDoGrupo: boolean = false): Promise<void> {
-    const agora = new Date().toISOString();
     if (excluirTodasDoGrupo) {
       const transacao = await this.obterPorId(id);
       if (transacao && transacao.grupo_parcelamento_id) {
         await this.db.runAsync(
-          'UPDATE transacoes SET deleted_at = ? WHERE grupo_parcelamento_id = ? AND deleted_at IS NULL;',
-          agora,
+          "UPDATE transacoes SET deleted_at = strftime('%s', 'now') WHERE grupo_parcelamento_id = ? AND deleted_at IS NULL;",
           transacao.grupo_parcelamento_id
         );
         return;
       }
     }
 
-    await this.db.runAsync('UPDATE transacoes SET deleted_at = ? WHERE id = ?;', agora, id);
+    await this.db.runAsync("UPDATE transacoes SET deleted_at = strftime('%s', 'now') WHERE id = ?;", id);
   }
 
   /**
@@ -476,12 +474,12 @@ export class TransactionsRepository {
     }>(
       `SELECT 
          SUM(CASE WHEN tipo = 'receita' THEN valor ELSE 0 END) as receitas,
-         SUM(CASE WHEN tipo = 'despesa' AND IFNULL(forma_pagamento, '') != 'pagamento_fatura' THEN valor ELSE 0 END) as despesas,
+         SUM(CASE WHEN tipo = 'despesa' AND COALESCE(is_transfer, 0) = 0 THEN valor ELSE 0 END) as despesas,
          SUM(CASE WHEN tipo = 'receita' AND pago = 1 THEN valor ELSE 0 END) as receitasRealizadas,
-         SUM(CASE WHEN tipo = 'despesa' AND pago = 1 AND cartao_id IS NULL AND IFNULL(forma_pagamento, '') != 'pagamento_fatura' THEN valor ELSE 0 END) as despesasRealizadas,
+         SUM(CASE WHEN tipo = 'despesa' AND pago = 1 AND cartao_id IS NULL AND COALESCE(is_transfer, 0) = 0 THEN valor ELSE 0 END) as despesasRealizadas,
          SUM(CASE WHEN tipo = 'receita' AND pago = 0 THEN valor ELSE 0 END) as receitasPendentes,
-         SUM(CASE WHEN tipo = 'despesa' AND pago = 0 AND IFNULL(forma_pagamento, '') != 'pagamento_fatura' THEN valor ELSE 0 END) as despesasPendentes,
-         COUNT(CASE WHEN tipo = 'despesa' AND pago = 0 AND IFNULL(forma_pagamento, '') != 'pagamento_fatura' THEN 1 END) as contasPendentesQtd
+         SUM(CASE WHEN tipo = 'despesa' AND pago = 0 AND COALESCE(is_transfer, 0) = 0 THEN valor ELSE 0 END) as despesasPendentes,
+         COUNT(CASE WHEN tipo = 'despesa' AND pago = 0 AND COALESCE(is_transfer, 0) = 0 THEN 1 END) as contasPendentesQtd
        FROM transacoes 
        WHERE data >= ? AND data < ? AND deleted_at IS NULL;`,
       inicio,
@@ -534,7 +532,7 @@ export class TransactionsRepository {
     }>(
       `SELECT 
          SUM(CASE WHEN tipo = 'receita' AND pago = 1 THEN valor ELSE 0 END) as receitas,
-         SUM(CASE WHEN tipo = 'despesa' AND pago = 1 THEN valor ELSE 0 END) as despesas,
+         SUM(CASE WHEN tipo = 'despesa' AND pago = 1 AND COALESCE(is_transfer, 0) = 0 THEN valor ELSE 0 END) as despesas,
          COUNT(DISTINCT substr(data, 1, 7)) as meses
        FROM transacoes 
        WHERE data >= ? AND data < ? AND deleted_at IS NULL;`,
@@ -666,7 +664,7 @@ export class TransactionsRepository {
          SUM(t.valor) as total
        FROM transacoes t
        INNER JOIN categorias c ON t.categoria_id = c.id
-       WHERE t.data >= ? AND t.data < ? AND t.tipo = 'despesa' AND t.deleted_at IS NULL
+       WHERE t.data >= ? AND t.data < ? AND t.tipo = 'despesa' AND COALESCE(t.is_transfer, 0) = 0 AND t.deleted_at IS NULL
        GROUP BY c.tipo_gasto;`,
       inicio,
       fimExclusivo
@@ -713,7 +711,7 @@ export class TransactionsRepository {
 
     // Busca o total mensal de despesas fixas recorrentes ativas
     const recorrentesResult = await this.db.getFirstAsync<{ total: number | null }>(
-      `SELECT SUM(valor) as total FROM lancamentos_recorrentes WHERE ativo = 1 AND tipo = 'despesa';`
+      `SELECT SUM(valor) as total FROM lancamentos_recorrentes WHERE ativo = 1 AND tipo = 'despesa' AND COALESCE(is_transfer, 0) = 0;`
     );
     const totalRecorrentesMensal = Math.round((recorrentesResult?.total || 0) * 100) / 100;
 
@@ -733,7 +731,7 @@ export class TransactionsRepository {
         `SELECT SUM(valor) as total, COUNT(*) as qtd 
          FROM transacoes 
          WHERE data >= ? AND data < ? 
-           AND tipo = 'despesa' 
+           AND tipo = 'despesa' AND COALESCE(is_transfer, 0) = 0 
            AND total_parcelas IS NOT NULL 
            AND total_parcelas > 1
            AND deleted_at IS NULL;`,
@@ -780,7 +778,7 @@ export class TransactionsRepository {
     const totalRecorrentesReceitas = Math.round((recorrentesReceitas?.total || 0) * 100) / 100;
 
     const recorrentesDespesas = await this.db.getFirstAsync<{ total: number | null }>(
-      `SELECT SUM(valor) as total FROM lancamentos_recorrentes WHERE ativo = 1 AND tipo = 'despesa';`
+      `SELECT SUM(valor) as total FROM lancamentos_recorrentes WHERE ativo = 1 AND tipo = 'despesa' AND COALESCE(is_transfer, 0) = 0;`
     );
     const totalRecorrentesDespesas = Math.round((recorrentesDespesas?.total || 0) * 100) / 100;
 
@@ -802,7 +800,7 @@ export class TransactionsRepository {
         `SELECT SUM(valor) as total 
          FROM transacoes 
          WHERE data >= ? AND data < ? 
-           AND tipo = 'despesa' 
+           AND tipo = 'despesa' AND COALESCE(is_transfer, 0) = 0 
            AND total_parcelas IS NOT NULL 
            AND total_parcelas > 1
            AND deleted_at IS NULL;`,
@@ -868,7 +866,7 @@ export class TransactionsRepository {
          SUM(t.valor) as total
        FROM transacoes t
        INNER JOIN categorias c ON t.categoria_id = c.id
-       WHERE t.data >= ? AND t.data < ? AND t.tipo = 'despesa' AND t.deleted_at IS NULL
+       WHERE t.data >= ? AND t.data < ? AND t.tipo = 'despesa' AND COALESCE(t.is_transfer, 0) = 0 AND t.deleted_at IS NULL
        GROUP BY c.id;`,
       inicioMesAtual,
       fimMesAtual
@@ -890,7 +888,7 @@ export class TransactionsRepository {
          SUM(valor) as totalHistorico,
          COUNT(DISTINCT substr(data, 1, 7)) as mesesDistintos
        FROM transacoes
-       WHERE data >= ? AND data < ? AND tipo = 'despesa' AND deleted_at IS NULL
+       WHERE data >= ? AND data < ? AND tipo = 'despesa' AND COALESCE(is_transfer, 0) = 0 AND deleted_at IS NULL
        GROUP BY categoria_id;`,
       dataInicioHistorico,
       dataFimHistorico

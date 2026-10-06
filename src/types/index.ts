@@ -19,6 +19,7 @@ export interface Conta {
   saldo_inicial: number;
   cor?: string;
   icone?: string;
+  deleted_at?: number | null;
 }
 
 export interface Cartao {
@@ -30,6 +31,7 @@ export interface Cartao {
   conta_pagamento_id?: number;
   cor?: string;
   icone?: string;
+  deleted_at?: number | null;
 }
 
 export interface Categoria {
@@ -42,6 +44,7 @@ export interface Categoria {
   tipo_gasto?: TipoGasto; // 'essencial' (50%), 'estilo_de_vida' (30%) ou 'poupanca' (20%)
   totalGasto?: number; // Para relatórios e rankings
   contagemTransacoes?: number;
+  deleted_at?: number | null;
 }
 
 export interface Transacao {
@@ -63,6 +66,7 @@ export interface Transacao {
   cartao_id?: number | null;
   fatura_id?: number | null;
   codigo_bancario_hash?: string | null;
+  is_transfer?: number;
   anexo_uri?: string | null;
   deleted_at?: string | null;
   created_at?: string;
@@ -83,6 +87,7 @@ export interface FaturaCartao {
   data_vencimento: string;
   valor_total: number;
   status: FaturaStatus;
+  deleted_at?: number | null;
 }
 
 export interface ProjecaoFluxoMes {

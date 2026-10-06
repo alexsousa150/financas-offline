@@ -14,7 +14,7 @@ import { useApp } from '../context/AppContext';
 import { MonthSelector } from '../components/MonthSelector';
 import { TransactionItem } from '../components/TransactionItem';
 import EmptyState from '../components/EmptyState';
-import { Transacao } from '../types';
+import { Transacao, ResumoFinanceiro, RankingCategoria, FaturaCartao, TetoDiarioInfo, AnaliseEssencialVsEstilo } from '../types';
 
 interface HomeScreenProps {
   onNavegarParaHistorico: () => void;
@@ -33,28 +33,68 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
   const {
     mesSelecionado,
     setMesSelecionado,
-    resumoMes,
-    rankingGastos,
-    transacoesRecentes,
-    carregarDadosPainel,
     abrirModalEditarLancamento,
     abrirModalDuplicarLancamento,
     transactionsRepo,
+    recurringRepo,
+    creditCardEngine,
+    faturasRepo,
     notificarMudancaDados,
     alternarStatusPago,
-    faturasPendentes,
     pagarFatura,
     contas,
     modoPrivacidade,
     alternarModoPrivacidade,
     formatarValor,
+    refreshKey,
   } = useApp();
+
+  const [resumoMes, setResumoMes] = React.useState<ResumoFinanceiro>({
+    receitas: 0,
+    despesas: 0,
+    saldo: 0,
+    saldoRealizado: 0,
+    receitasRealizadas: 0,
+    despesasRealizadas: 0,
+    receitasPendentes: 0,
+    despesasPendentes: 0,
+    contasPendentesQtd: 0,
+    contasPendentesValor: 0,
+  });
+  const [rankingGastos, setRankingGastos] = React.useState<RankingCategoria[]>([]);
+  const [transacoesRecentes, setTransacoesRecentes] = React.useState<Transacao[]>([]);
+  const [faturasPendentes, setFaturasPendentes] = React.useState<FaturaCartao[]>([]);
+
+  const carregarDadosLocais = React.useCallback(async () => {
+    try {
+      await creditCardEngine.processarFechamentos();
+      await recurringRepo.processarRecorrentesDoMes(mesSelecionado);
+
+      const [resumo, ranking, recentes, faturas] = await Promise.all([
+        transactionsRepo.obterResumoMes(mesSelecionado),
+        transactionsRepo.obterRankingCategorias(mesSelecionado, 'despesa'),
+        transactionsRepo.listar({ mesAno: mesSelecionado, limite: 8 }),
+        faturasRepo.buscarPorStatus('fechada'),
+      ]);
+
+      setResumoMes(resumo);
+      setRankingGastos(ranking);
+      setTransacoesRecentes(recentes);
+      setFaturasPendentes(faturas);
+    } catch (e) {
+      console.error('Erro ao carregar dados da HomeScreen:', e);
+    }
+  }, [mesSelecionado, transactionsRepo, recurringRepo, creditCardEngine, faturasRepo]);
+
+  React.useEffect(() => {
+    carregarDadosLocais();
+  }, [carregarDadosLocais, refreshKey]);
 
   const [atualizando, setAtualizando] = React.useState(false);
 
   const onRefresh = async () => {
     setAtualizando(true);
-    await carregarDadosPainel();
+    await carregarDadosLocais();
     setAtualizando(false);
   };
 

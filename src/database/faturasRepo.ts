@@ -6,21 +6,21 @@ export class FaturasRepository {
 
   async buscarPorCartao(cartaoId: number): Promise<FaturaCartao[]> {
     return await this.db.getAllAsync<FaturaCartao>(
-      'SELECT * FROM faturas WHERE cartao_id = ? ORDER BY mes_ano DESC;',
+      'SELECT * FROM faturas WHERE cartao_id = ? AND deleted_at IS NULL ORDER BY mes_ano DESC;',
       cartaoId
     );
   }
 
   async obterPorId(id: number): Promise<FaturaCartao | null> {
     return await this.db.getFirstAsync<FaturaCartao>(
-      'SELECT * FROM faturas WHERE id = ?;',
+      'SELECT * FROM faturas WHERE id = ? AND deleted_at IS NULL;',
       id
     );
   }
 
   async buscarPorStatus(status: FaturaStatus): Promise<FaturaCartao[]> {
     return await this.db.getAllAsync<FaturaCartao>(
-      'SELECT * FROM faturas WHERE status = ? ORDER BY data_vencimento ASC;',
+      'SELECT * FROM faturas WHERE status = ? AND deleted_at IS NULL ORDER BY data_vencimento ASC;',
       status
     );
   }

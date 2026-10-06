@@ -9,7 +9,7 @@ export class CartoesRepository {
   }
 
   async buscarTodos(): Promise<Cartao[]> {
-    return await this.db.getAllAsync<Cartao>('SELECT * FROM cartoes ORDER BY id ASC;');
+    return await this.db.getAllAsync<Cartao>('SELECT * FROM cartoes WHERE deleted_at IS NULL ORDER BY id ASC;');
   }
 
   async criar(cartao: Omit<Cartao, 'id'>): Promise<number> {
@@ -46,6 +46,6 @@ export class CartoesRepository {
   }
 
   async excluir(id: number): Promise<void> {
-    await this.db.runAsync('DELETE FROM cartoes WHERE id = ?;', id);
+    await this.db.runAsync("UPDATE cartoes SET deleted_at = strftime('%s', 'now') WHERE id = ?;", id);
   }
 }

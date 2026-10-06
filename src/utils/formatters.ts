@@ -4,7 +4,7 @@
 
 export function formatarMoeda(valor: number): string {
   if (isNaN(valor)) return 'R$ 0,00';
-  return valor.toLocaleString('pt-BR', {
+  return (valor / 100).toLocaleString('pt-BR', {
     style: 'currency',
     currency: 'BRL',
     minimumFractionDigits: 2,
@@ -195,4 +195,16 @@ export function subtrairMoeda(a: number, b: number): number {
  */
 export function multiplicarMoeda(valor: number, fator: number): number {
   return Math.round(valor * fator * 100) / 100;
+}
+
+/**
+ * Converte string formatada de moeda para número inteiro em centavos
+ */
+export function parseMoeda(texto: string): number {
+  if (!texto) return 0;
+  // Ex: "R$ 1.234,56" -> 1234.56 -> 123456
+  const limpo = texto.replace(/\./g, '').replace(',', '.').replace(/[^0-9.-]/g, '');
+  const num = parseFloat(limpo);
+  if (isNaN(num)) return 0;
+  return Math.round(num * 100);
 }

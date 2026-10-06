@@ -370,4 +370,42 @@ export async function inicializarBanco(db: SQLiteDatabase): Promise<void> {
   } catch (e) {
     console.warn('Erro ao verificar/semear favoritos:', e);
   }
+
+  // Migração 8: Soft Delete e Cents Precision
+  await executarMigracao(8, 'Soft Delete and Cents Precision', async () => {
+    try {
+      // Add deleted_at to tables if they don't have it
+      const tables = ['transacoes', 'categorias', 'contas', 'cartoes', 'faturas'];
+      for (const table of tables) {
+        const columns = await db.getAllAsync<{ name: string }>(`PRAGMA table_info(${table});`);
+        const columnNames = new Set(columns.map((c) => c.name.toLowerCase()));
+        if (!columnNames.has('deleted_at')) {
+          await db.execAsync(`ALTER TABLE ${table} ADD COLUMN deleted_at INTEGER DEFAULT NULL;`);
+        }
+      }
+
+      // Convert values to cents
+      await db.execAsync(`
+        UPDATE transacoes SET valor = CAST(ROUND(valor * 100) AS INTEGER);
+        UPDATE contas SET saldo_inicial = CAST(ROUND(saldo_inicial * 100) AS INTEGER);
+        UPDATE cartoes SET limite = CAST(ROUND(limite * 100) AS INTEGER);
+        UPDATE faturas SET valor_total = CAST(ROUND(valor_total * 100) AS INTEGER);
+      `);
+    } catch (e) {
+      console.warn('Migração 8 falhou:', e);
+    }
+  });
+
+  // Migração 9: Support is_transfer for correct expense summing
+  await executarMigracao(9, 'Suporte is_transfer', async () => {
+    try {
+      const colunasTransacoes = await db.getAllAsync<{ name: string }>('PRAGMA table_info(transacoes);');
+      const nomesTransacoes = new Set(colunasTransacoes.map((c) => c.name.toLowerCase()));
+      if (!nomesTransacoes.has('is_transfer')) {
+        await db.execAsync(`ALTER TABLE transacoes ADD COLUMN is_transfer INTEGER DEFAULT 0;`);
+      }
+    } catch (e) {
+      console.warn('Migração 9 falhou:', e);
+    }
+  });
 }

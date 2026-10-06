@@ -9,7 +9,7 @@ export class ContasRepository {
   }
 
   async buscarTodas(): Promise<Conta[]> {
-    return await this.db.getAllAsync<Conta>('SELECT * FROM contas ORDER BY id ASC;');
+    return await this.db.getAllAsync<Conta>('SELECT * FROM contas WHERE deleted_at IS NULL ORDER BY id ASC;');
   }
 
   async criar(conta: Omit<Conta, 'id'>): Promise<number> {
@@ -42,7 +42,6 @@ export class ContasRepository {
   }
 
   async excluir(id: number): Promise<void> {
-    // Atenção: excluir conta pode deixar transações orfãs. O ideal é soft delete no futuro ou transferir.
-    await this.db.runAsync('DELETE FROM contas WHERE id = ?;', id);
+    await this.db.runAsync("UPDATE contas SET deleted_at = strftime('%s', 'now') WHERE id = ?;", id);
   }
 }

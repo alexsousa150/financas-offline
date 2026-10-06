@@ -16,7 +16,8 @@ export class CategoriesRepository {
         COALESCE(c.tipo_gasto, 'essencial') as tipo_gasto,
         COUNT(t.id) as contagemTransacoes
       FROM categorias c
-      LEFT JOIN transacoes t ON c.id = t.categoria_id
+      LEFT JOIN transacoes t ON c.id = t.categoria_id AND t.deleted_at IS NULL
+      WHERE c.deleted_at IS NULL
       GROUP BY c.id
       ORDER BY c.ordem ASC, c.nome ASC;
     `);
@@ -26,7 +27,7 @@ export class CategoriesRepository {
   async obterPorId(id: number): Promise<Categoria | null> {
     const row = await this.db.getFirstAsync<Categoria>(
       `SELECT id, nome, icone, cor, ordem, limite_mensal, COALESCE(tipo_gasto, 'essencial') as tipo_gasto 
-       FROM categorias WHERE id = ?;`,
+       FROM categorias WHERE id = ? AND deleted_at IS NULL;`,
       id
     );
     return row || null;
@@ -41,7 +42,7 @@ export class CategoriesRepository {
   ): Promise<Categoria> {
     const existente = await this.db.getFirstAsync<Categoria>(
       `SELECT id, nome, icone, cor, ordem, limite_mensal, COALESCE(tipo_gasto, 'essencial') as tipo_gasto 
-       FROM categorias WHERE LOWER(nome) = LOWER(?);`,
+       FROM categorias WHERE LOWER(nome) = LOWER(?) AND deleted_at IS NULL;`,
       nome.trim()
     );
     if (existente) return existente;
@@ -138,7 +139,7 @@ export class CategoriesRepository {
         }
       }
 
-      await this.db.runAsync('DELETE FROM categorias WHERE id = ?;', id);
+      await this.db.runAsync("UPDATE categorias SET deleted_at = strftime('%s', 'now') WHERE id = ?;", id);
     });
   }
 
@@ -155,7 +156,7 @@ export class CategoriesRepository {
         categoriaDestinoId,
         categoriaOrigemId
       );
-      await this.db.runAsync('DELETE FROM categorias WHERE id = ?;', categoriaOrigemId);
+      await this.db.runAsync("UPDATE categorias SET deleted_at = strftime('%s', 'now') WHERE id = ?;", categoriaOrigemId);
     });
   }
 }
