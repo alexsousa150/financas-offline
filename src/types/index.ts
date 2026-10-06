@@ -8,7 +8,7 @@ export type OrigemTransacao = 'manual' | 'importado';
 
 export type TipoGasto = 'essencial' | 'estilo_de_vida' | 'poupanca';
 
-export type FormaPagamento = 'pix' | 'cartao_credito' | 'cartao_debito' | 'dinheiro' | 'outro';
+export type FormaPagamento = 'pix' | 'cartao_credito' | 'cartao_debito' | 'dinheiro' | 'pagamento_fatura' | 'outro';
 
 export type TipoConta = 'corrente' | 'carteira' | 'poupanca' | 'beneficio';
 
@@ -61,6 +61,7 @@ export interface Transacao {
   conta_id?: number | null;
   conta_destino_id?: number | null;
   cartao_id?: number | null;
+  fatura_id?: number | null;
   codigo_bancario_hash?: string | null;
   anexo_uri?: string | null;
   deleted_at?: string | null;
@@ -70,6 +71,18 @@ export interface Transacao {
   categoria_icone?: string;
   categoria_cor?: string;
   categoria_tipo_gasto?: TipoGasto;
+}
+
+export type FaturaStatus = 'aberta' | 'fechada' | 'paga';
+
+export interface FaturaCartao {
+  id: number;
+  cartao_id: number;
+  mes_ano: string; // YYYY-MM
+  data_fechamento: string;
+  data_vencimento: string;
+  valor_total: number;
+  status: FaturaStatus;
 }
 
 export interface ProjecaoFluxoMes {

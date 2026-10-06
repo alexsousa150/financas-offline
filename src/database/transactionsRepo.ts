@@ -476,12 +476,12 @@ export class TransactionsRepository {
     }>(
       `SELECT 
          SUM(CASE WHEN tipo = 'receita' THEN valor ELSE 0 END) as receitas,
-         SUM(CASE WHEN tipo = 'despesa' THEN valor ELSE 0 END) as despesas,
+         SUM(CASE WHEN tipo = 'despesa' AND IFNULL(forma_pagamento, '') != 'pagamento_fatura' THEN valor ELSE 0 END) as despesas,
          SUM(CASE WHEN tipo = 'receita' AND pago = 1 THEN valor ELSE 0 END) as receitasRealizadas,
-         SUM(CASE WHEN tipo = 'despesa' AND pago = 1 AND cartao_id IS NULL THEN valor ELSE 0 END) as despesasRealizadas,
+         SUM(CASE WHEN tipo = 'despesa' AND pago = 1 AND cartao_id IS NULL AND IFNULL(forma_pagamento, '') != 'pagamento_fatura' THEN valor ELSE 0 END) as despesasRealizadas,
          SUM(CASE WHEN tipo = 'receita' AND pago = 0 THEN valor ELSE 0 END) as receitasPendentes,
-         SUM(CASE WHEN tipo = 'despesa' AND pago = 0 THEN valor ELSE 0 END) as despesasPendentes,
-         COUNT(CASE WHEN tipo = 'despesa' AND pago = 0 THEN 1 END) as contasPendentesQtd
+         SUM(CASE WHEN tipo = 'despesa' AND pago = 0 AND IFNULL(forma_pagamento, '') != 'pagamento_fatura' THEN valor ELSE 0 END) as despesasPendentes,
+         COUNT(CASE WHEN tipo = 'despesa' AND pago = 0 AND IFNULL(forma_pagamento, '') != 'pagamento_fatura' THEN 1 END) as contasPendentesQtd
        FROM transacoes 
        WHERE data >= ? AND data < ? AND deleted_at IS NULL;`,
       inicio,

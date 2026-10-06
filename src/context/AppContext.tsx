@@ -5,6 +5,8 @@ import { CategoriesRepository } from '../database/categoriesRepo';
 import { TransactionsRepository } from '../database/transactionsRepo';
 import { ContasRepository } from '../database/contasRepo';
 import { CartoesRepository } from '../database/cartoesRepo';
+import { FaturasRepository } from '../database/faturasRepo';
+import { CreditCardEngine } from '../services/creditCardEngine';
 import { BackupRepository, StatusBackupInfo } from '../database/backupRepo';
 import { SettingsRepository } from '../database/settingsRepo';
 import { RecurringRepository } from '../database/recurringRepo';
@@ -23,6 +25,7 @@ import {
   AnaliseEssencialVsEstilo,
   Favorito,
   TipoTransacao,
+  FaturaCartao,
 } from '../types';
 import { getMesAnoAtualIso, formatarMoeda, getDataHojeIso } from '../utils/formatters';
 import { AppHaptics } from '../utils/haptics';
@@ -34,6 +37,7 @@ interface AppContextType {
   transactionsRepo: TransactionsRepository;
   contasRepo: ContasRepository;
   cartoesRepo: CartoesRepository;
+  faturasRepo: FaturasRepository;
   backupRepo: BackupRepository;
   settingsRepo: SettingsRepository;
   recurringRepo: RecurringRepository;
@@ -71,9 +75,12 @@ interface AppContextType {
   resumoMes: ResumoFinanceiro;
   rankingGastos: RankingCategoria[];
   transacoesRecentes: Transacao[];
+  faturasPendentes: FaturaCartao[];
   tetoDiario: TetoDiarioInfo | null;
   analiseEssencial: AnaliseEssencialVsEstilo | null;
   carregarDadosPainel: () => Promise<void>;
+  carregarFaturasPendentes: () => Promise<void>;
+  pagarFatura: (faturaId: number, contaId: number) => Promise<void>;
   alternarStatusPago: (id: number, novoStatus: number) => Promise<void>;
 
   // Modo Privacidade
@@ -121,6 +128,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [transactionsRepo] = useState(() => new TransactionsRepository(db));
   const contasRepo = React.useMemo(() => new ContasRepository(db), [db]);
   const cartoesRepo = React.useMemo(() => new CartoesRepository(db), [db]);
+  const faturasRepo = React.useMemo(() => new FaturasRepository(db), [db]);
+  const creditCardEngine = React.useMemo(() => new CreditCardEngine(db, cartoesRepo, faturasRepo, transactionsRepo), [db, cartoesRepo, faturasRepo, transactionsRepo]);
   const [backupRepo] = useState(() => new BackupRepository(db));
   const [settingsRepo] = useState(() => new SettingsRepository(db));
   const [recurringRepo] = useState(() => new RecurringRepository(db));
@@ -154,6 +163,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   });
   const [rankingGastos, setRankingGastos] = useState<RankingCategoria[]>([]);
   const [transacoesRecentes, setTransacoesRecentes] = useState<Transacao[]>([]);
+  const [faturasPendentes, setFaturasPendentes] = useState<FaturaCartao[]>([]);
   const [tetoDiario, setTetoDiario] = useState<TetoDiarioInfo | null>(null);
   const [analiseEssencial, setAnaliseEssencial] = useState<AnaliseEssencialVsEstilo | null>(null);
 
@@ -329,6 +339,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const carregarDadosPainel = useCallback(async () => {
     try {
+      await creditCardEngine.processarFechamentos();
       await recurringRepo.processarRecorrentesDoMes(mesSelecionado);
 
       const [resumo, ranking, recentes, teto, analise] = await Promise.all([
@@ -359,9 +370,28 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
   };
 
+  const carregarFaturasPendentes = useCallback(async () => {
+    try {
+      const faturas = await faturasRepo.buscarPorStatus('fechada');
+      setFaturasPendentes(faturas);
+    } catch (e) {
+      console.error('Erro ao carregar faturas pendentes:', e);
+    }
+  }, [faturasRepo]);
+
+  const pagarFatura = async (faturaId: number, contaId: number) => {
+    try {
+      AppHaptics.toqueSucesso();
+      await creditCardEngine.pagarFatura(faturaId, contaId);
+      await notificarMudancaDados();
+    } catch (e) {
+      console.error('Erro ao pagar fatura:', e);
+    }
+  };
+
   const notificarMudancaDados = useCallback(async () => {
-    await Promise.all([carregarCategorias(), carregarContas(), carregarCartoes(), carregarFavoritos(), carregarDadosPainel(), carregarStatusBackup()]);
-  }, [carregarCategorias, carregarContas, carregarCartoes, carregarFavoritos, carregarDadosPainel, carregarStatusBackup]);
+    await Promise.all([carregarCategorias(), carregarContas(), carregarCartoes(), carregarFavoritos(), carregarDadosPainel(), carregarStatusBackup(), carregarFaturasPendentes()]);
+  }, [carregarCategorias, carregarContas, carregarCartoes, carregarFavoritos, carregarDadosPainel, carregarStatusBackup, carregarFaturasPendentes]);
 
   useEffect(() => {
     carregarCategorias();
@@ -369,10 +399,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     carregarCartoes();
     carregarFavoritos();
     carregarStatusBackup();
+    carregarFaturasPendentes();
     transactionsRepo.expurgarLixeiraAntiga(30).catch((e) => {
       console.error('Erro ao expurgar lixeira antiga:', e);
     });
-  }, [carregarCategorias, carregarContas, carregarCartoes, carregarFavoritos, carregarStatusBackup, transactionsRepo]);
+  }, [carregarCategorias, carregarContas, carregarCartoes, carregarFavoritos, carregarStatusBackup, carregarFaturasPendentes, transactionsRepo]);
 
   useEffect(() => {
     carregarDadosPainel();
@@ -386,6 +417,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         transactionsRepo,
         contasRepo,
         cartoesRepo,
+        faturasRepo,
         backupRepo,
         settingsRepo,
         recurringRepo,
@@ -414,9 +446,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         resumoMes,
         rankingGastos,
         transacoesRecentes,
+        faturasPendentes,
         tetoDiario,
         analiseEssencial,
         carregarDadosPainel,
+        carregarFaturasPendentes,
+        pagarFatura,
         alternarStatusPago,
         modoPrivacidade,
         alternarModoPrivacidade,

@@ -278,6 +278,33 @@ export async function inicializarBanco(db: SQLiteDatabase): Promise<void> {
     }
   });
 
+  // Migração 7: Criação do controle de faturas
+  await executarMigracao(7, 'Criar controle de faturas', async () => {
+    try {
+      await db.execAsync(`
+        CREATE TABLE IF NOT EXISTS faturas (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          cartao_id INTEGER NOT NULL,
+          mes_ano TEXT NOT NULL,
+          data_fechamento TEXT NOT NULL,
+          data_vencimento TEXT NOT NULL,
+          valor_total REAL NOT NULL DEFAULT 0,
+          status TEXT NOT NULL DEFAULT 'aberta',
+          FOREIGN KEY(cartao_id) REFERENCES cartoes(id)
+        );
+      `);
+
+      const colunasTransacoes = await db.getAllAsync<{ name: string }>('PRAGMA table_info(transacoes);');
+      const nomesTransacoes = new Set(colunasTransacoes.map((c) => c.name.toLowerCase()));
+
+      if (!nomesTransacoes.has('fatura_id')) {
+        await db.execAsync('ALTER TABLE transacoes ADD COLUMN fatura_id INTEGER REFERENCES faturas(id);');
+      }
+    } catch (e) {
+      console.warn('Migração 7 falhou:', e);
+    }
+  });
+
   // 5. Verifica se categorias padrão já existem, se não, semeia
   const categoriasContagem = await db.getFirstAsync<{ count: number }>(
     'SELECT COUNT(*) as count FROM categorias;'

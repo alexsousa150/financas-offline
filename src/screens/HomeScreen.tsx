@@ -42,6 +42,9 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
     transactionsRepo,
     notificarMudancaDados,
     alternarStatusPago,
+    faturasPendentes,
+    pagarFatura,
+    contas,
     modoPrivacidade,
     alternarModoPrivacidade,
     formatarValor,
@@ -253,6 +256,29 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
               );
             })}
           </ScrollView>
+        </View>
+      )}
+
+      {/* Faturas Pendentes */}
+      {faturasPendentes?.length > 0 && (
+        <View style={styles.secaoFaturas}>
+          <View style={styles.cabecalhoSecao}>
+            <Text style={[styles.tituloSecao, { color: theme.text }]}>Faturas Pendentes</Text>
+          </View>
+          {faturasPendentes.map((fatura) => (
+            <View key={fatura.id} style={[styles.cardFatura, { backgroundColor: theme.card, borderColor: theme.cardBorder }]}>
+              <View style={styles.infoFatura}>
+                <Text style={[styles.nomeFatura, { color: theme.text }]}>Fatura {fatura.mes_ano}</Text>
+                <Text style={[styles.valorFatura, { color: theme.text }]}>{formatarValor(fatura.valor_total)}</Text>
+              </View>
+              <TouchableOpacity
+                style={[styles.botaoPagarFatura, { backgroundColor: theme.primary }]}
+                onPress={() => pagarFatura(fatura.id, contas[0]?.id || 1)}
+              >
+                <Text style={styles.textoBotaoPagarFatura}>Pagar Fatura</Text>
+              </TouchableOpacity>
+            </View>
+          ))}
         </View>
       )}
 
@@ -495,5 +521,42 @@ const styles = StyleSheet.create({
   linkVerTodos: {
     fontSize: 13,
     fontWeight: '700',
+  },
+
+  /* Seção Faturas Pendentes */
+  secaoFaturas: {
+    paddingHorizontal: 16,
+    marginBottom: 24,
+  },
+  cardFatura: {
+    padding: 16,
+    borderRadius: 16,
+    borderWidth: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 12,
+  },
+  infoFatura: {
+    flex: 1,
+  },
+  nomeFatura: {
+    fontSize: 15,
+    fontWeight: '600',
+    marginBottom: 4,
+  },
+  valorFatura: {
+    fontSize: 18,
+    fontWeight: '700',
+  },
+  botaoPagarFatura: {
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderRadius: 8,
+  },
+  textoBotaoPagarFatura: {
+    color: '#fff',
+    fontSize: 14,
+    fontWeight: '600',
   },
 });
