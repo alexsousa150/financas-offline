@@ -10,11 +10,11 @@ export const CATEGORIAS_PADRAO: {
   limite: number | null;
   tipo_gasto: TipoGasto;
 }[] = [
-  { nome: 'Alimentação', icone: 'fast-food-outline', cor: '#FF6B6B', limite: 1200, tipo_gasto: 'essencial' },
-  { nome: 'Transporte', icone: 'car-sport-outline', cor: '#4D96FF', limite: 500, tipo_gasto: 'essencial' },
-  { nome: 'Moradia', icone: 'home-outline', cor: '#FF922B', limite: 1500, tipo_gasto: 'essencial' },
-  { nome: 'Saúde', icone: 'fitness-outline', cor: '#20C997', limite: 300, tipo_gasto: 'essencial' },
-  { nome: 'Lazer', icone: 'game-controller-outline', cor: '#9B51E0', limite: 400, tipo_gasto: 'estilo_de_vida' },
+  { nome: 'Alimentação', icone: 'fast-food-outline', cor: '#FF6B6B', limite: 120000, tipo_gasto: 'essencial' },
+  { nome: 'Transporte', icone: 'car-sport-outline', cor: '#4D96FF', limite: 50000, tipo_gasto: 'essencial' },
+  { nome: 'Moradia', icone: 'home-outline', cor: '#FF922B', limite: 150000, tipo_gasto: 'essencial' },
+  { nome: 'Saúde', icone: 'fitness-outline', cor: '#20C997', limite: 30000, tipo_gasto: 'essencial' },
+  { nome: 'Lazer', icone: 'game-controller-outline', cor: '#9B51E0', limite: 40000, tipo_gasto: 'estilo_de_vida' },
   { nome: 'Investimentos / Reserva', icone: 'trending-up-outline', cor: '#0EA5E9', limite: null, tipo_gasto: 'poupanca' },
   { nome: 'Salário / Renda', icone: 'wallet-outline', cor: '#51CF66', limite: null, tipo_gasto: 'essencial' },
   { nome: 'Outros', icone: 'ellipsis-horizontal-circle-outline', cor: '#868E96', limite: null, tipo_gasto: 'estilo_de_vida' },
@@ -166,7 +166,7 @@ export async function inicializarBanco(db: SQLiteDatabase): Promise<void> {
         UPDATE transacoes SET pago = 1 WHERE pago IS NULL;
         UPDATE categorias SET tipo_gasto = 'essencial' WHERE tipo_gasto IS NULL;
       `);
-    } catch (e) {
+    } catch {
       // Ignora se der erro
     }
   });
@@ -348,23 +348,23 @@ export async function inicializarBanco(db: SQLiteDatabase): Promise<void> {
 
       await db.runAsync(
         'INSERT INTO favoritos (titulo, valor, tipo, categoria_id, icone) VALUES (?, ?, ?, ?, ?);',
-        'Almoço', 25.00, 'despesa', idAlim, 'restaurant-outline'
+        'Almoço', 2500, 'despesa', idAlim, 'restaurant-outline'
       );
       await db.runAsync(
         'INSERT INTO favoritos (titulo, valor, tipo, categoria_id, icone) VALUES (?, ?, ?, ?, ?);',
-        'Café', 6.00, 'despesa', idAlim, 'cafe-outline'
+        'Café', 600, 'despesa', idAlim, 'cafe-outline'
       );
       await db.runAsync(
         'INSERT INTO favoritos (titulo, valor, tipo, categoria_id, icone) VALUES (?, ?, ?, ?, ?);',
-        'Padaria', 12.00, 'despesa', idAlim, 'basket-outline'
+        'Padaria', 1200, 'despesa', idAlim, 'basket-outline'
       );
       await db.runAsync(
         'INSERT INTO favoritos (titulo, valor, tipo, categoria_id, icone) VALUES (?, ?, ?, ?, ?);',
-        'Combustível', 50.00, 'despesa', idTrans, 'car-sport-outline'
+        'Combustível', 5000, 'despesa', idTrans, 'car-sport-outline'
       );
       await db.runAsync(
         'INSERT INTO favoritos (titulo, valor, tipo, categoria_id, icone) VALUES (?, ?, ?, ?, ?);',
-        'Farmácia', 30.00, 'despesa', idSaude, 'fitness-outline'
+        'Farmácia', 3000, 'despesa', idSaude, 'fitness-outline'
       );
     }
   } catch (e) {
@@ -406,6 +406,88 @@ export async function inicializarBanco(db: SQLiteDatabase): Promise<void> {
       }
     } catch (e) {
       console.warn('Migração 9 falhou:', e);
+    }
+  });
+
+  // Migração 10: Ajuste definitivo de centavos para favoritos, recorrentes e categorias
+  await executarMigracao(10, 'Ajuste definitivo de centavos para favoritos e recorrentes', async () => {
+    try {
+      // 1. Atualiza transações recorrentes geradas no mês atual que ficaram com valor em reais
+      await db.execAsync(`
+        UPDATE transacoes 
+        SET valor = CAST(ROUND(valor * 100) AS INTEGER)
+        WHERE id IN (
+          SELECT t.id 
+          FROM transacoes t 
+          JOIN lancamentos_recorrentes r ON t.descricao = r.descricao 
+          WHERE t.valor = r.valor AND t.valor < 10000
+        );
+      `);
+
+      // 2. Converte lançamentos recorrentes para centavos
+      await db.execAsync(`
+        UPDATE lancamentos_recorrentes 
+        SET valor = CAST(ROUND(valor * 100) AS INTEGER)
+        WHERE valor < 100000;
+      `);
+
+      // 3. Converte favoritos para centavos
+      await db.execAsync(`
+        UPDATE favoritos 
+        SET valor = CAST(ROUND(valor * 100) AS INTEGER)
+        WHERE valor < 10000;
+      `);
+
+      // 4. Converte limite_mensal das categorias para centavos
+      await db.execAsync(`
+        UPDATE categorias 
+        SET limite_mensal = CAST(ROUND(limite_mensal * 100) AS INTEGER) 
+        WHERE limite_mensal IS NOT NULL AND limite_mensal < 100000;
+      `);
+    } catch (e) {
+      console.warn('Migração 10 falhou:', e);
+    }
+  });
+
+  // Migração 11: Categorias fintech completas (layout screenshots)
+  await executarMigracao(11, 'Categorias fintech completas', async () => {
+    try {
+      const categoriasNovas: { nome: string; icone: string; cor: string; tipo_gasto: TipoGasto }[] = [
+        { nome: 'Alimentação', icone: 'fast-food-outline', cor: '#FF6B6B', tipo_gasto: 'essencial' },
+        { nome: 'Assinaturas', icone: 'card-outline', cor: '#845EC2', tipo_gasto: 'estilo_de_vida' },
+        { nome: 'Compras', icone: 'bag-handle-outline', cor: '#FF9671', tipo_gasto: 'estilo_de_vida' },
+        { nome: 'Contas', icone: 'receipt-outline', cor: '#FFC75F', tipo_gasto: 'essencial' },
+        { nome: 'Educação', icone: 'school-outline', cor: '#00C9A7', tipo_gasto: 'essencial' },
+        { nome: 'Investimentos', icone: 'trending-up-outline', cor: '#0081CF', tipo_gasto: 'poupanca' },
+        { nome: 'Lazer', icone: 'game-controller-outline', cor: '#9B51E0', tipo_gasto: 'estilo_de_vida' },
+        { nome: 'Mercado', icone: 'cart-outline', cor: '#2C73D2', tipo_gasto: 'essencial' },
+        { nome: 'Moradia', icone: 'home-outline', cor: '#FF922B', tipo_gasto: 'essencial' },
+        { nome: 'Outros', icone: 'ellipsis-horizontal-circle-outline', cor: '#868E96', tipo_gasto: 'estilo_de_vida' },
+        { nome: 'Poupança', icone: 'wallet-outline', cor: '#00D2FC', tipo_gasto: 'poupanca' },
+        { nome: 'Restaurantes', icone: 'restaurant-outline', cor: '#FF5E7E', tipo_gasto: 'estilo_de_vida' },
+        { nome: 'Saúde', icone: 'fitness-outline', cor: '#20C997', tipo_gasto: 'essencial' },
+        { nome: 'Transporte', icone: 'car-sport-outline', cor: '#4D96FF', tipo_gasto: 'essencial' },
+        { nome: 'Freelance', icone: 'laptop-outline', cor: '#10B981', tipo_gasto: 'essencial' },
+        { nome: 'Salário', icone: 'cash-outline', cor: '#10B981', tipo_gasto: 'essencial' },
+      ];
+
+      for (const cat of categoriasNovas) {
+        const existe = await db.getFirstAsync<{ id: number }>(
+          'SELECT id FROM categorias WHERE LOWER(nome) = LOWER(?);',
+          cat.nome
+        );
+        if (!existe) {
+          await db.runAsync(
+            'INSERT INTO categorias (nome, icone, cor, tipo_gasto) VALUES (?, ?, ?, ?);',
+            cat.nome,
+            cat.icone,
+            cat.cor,
+            cat.tipo_gasto
+          );
+        }
+      }
+    } catch (e) {
+      console.warn('Migração 11 falhou:', e);
     }
   });
 }

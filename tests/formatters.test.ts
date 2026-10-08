@@ -20,12 +20,13 @@ describe('Formatters - Formatação Monetária e Datas', () => {
   it('deve executar aritmética monetária em centavos sem erros de float', () => {
     // 0.1 + 0.2 em float dá 0.30000000000000004
     assert.strictEqual(0.1 + 0.2 === 0.3, false); // Prova do bug de float padrão JS
-    assert.strictEqual(somarMoeda(0.1, 0.2), 0.3); // Com somarMoeda, dá exatamente 0.3!
+    // Em centavos: 10 + 20 = 30 centavos
+    assert.strictEqual(somarMoeda(10, 20), 30);
 
-    assert.strictEqual(subtrairMoeda(100.55, 33.33), 67.22);
+    assert.strictEqual(subtrairMoeda(10055, 3333), 6722);
     assert.strictEqual(reaisParaCentavos(99.99), 9999);
     assert.strictEqual(centavosParaReais(9999), 99.99);
-    assert.strictEqual(multiplicarMoeda(33.33, 3), 99.99);
+    assert.strictEqual(multiplicarMoeda(3333, 3), 9999);
   });
   it('deve converter centavos digitados para valor float corretamente', () => {
     assert.strictEqual(converterCentavosParaValor('1234'), 12.34);
@@ -39,7 +40,7 @@ describe('Formatters - Formatação Monetária e Datas', () => {
     const formatadoZero = formatarMoeda(0);
     assert.ok(formatadoZero.includes('0,00'));
 
-    const formatadoPositivo = formatarMoeda(1250.5);
+    const formatadoPositivo = formatarMoeda(125050);
     assert.ok(formatadoPositivo.includes('1.250,50') || formatadoPositivo.includes('1250,50'));
 
     const formatadoNaN = formatarMoeda(NaN);

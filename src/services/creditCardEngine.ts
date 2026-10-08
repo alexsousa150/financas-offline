@@ -22,9 +22,6 @@ export class CreditCardEngine {
       if (cartoes.length === 0) return;
 
       const hoje = new Date();
-      const anoAtual = hoje.getFullYear();
-      const mesAtual = hoje.getMonth() + 1; // 1 a 12
-      const diaAtual = hoje.getDate();
 
       // Busca todas as transações de cartão que ainda não estão presas em uma fatura
       const transacoesSoltas = await this.db.getAllAsync<Transacao>(

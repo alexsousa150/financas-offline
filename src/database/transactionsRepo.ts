@@ -5,7 +5,6 @@ import {
   ResumoFinanceiro,
   RankingCategoria,
   ComprometimentoFuturo,
-  TetoDiarioInfo,
   AnaliseEssencialVsEstilo,
   FormaPagamento,
   ProjecaoFluxoMes,
@@ -18,12 +17,13 @@ import {
   getIntervaloAno,
   subtrairMoeda,
   somarMoeda,
-  reaisParaCentavos,
-  centavosParaReais,
 } from '../utils/formatters';
 
 export interface FiltrosTransacao {
   mesAno?: string; // Formato YYYY-MM
+  data?: string; // Formato YYYY-MM-DD
+  dataInicio?: string;
+  dataFim?: string;
   tipo?: TipoTransacao;
   categoriaId?: number;
   pago?: number; // 0 = pendente, 1 = pago
@@ -63,6 +63,21 @@ export class TransactionsRepository {
       WHERE t.deleted_at IS NULL
     `;
     const params: any[] = [];
+
+    if (filtros.data) {
+      sql += ` AND t.data = ?`;
+      params.push(filtros.data);
+    }
+
+    if (filtros.dataInicio) {
+      sql += ` AND t.data >= ?`;
+      params.push(filtros.dataInicio);
+    }
+
+    if (filtros.dataFim) {
+      sql += ` AND t.data <= ?`;
+      params.push(filtros.dataFim);
+    }
 
     if (filtros.mesAno) {
       const { inicio, fimExclusivo } = getIntervaloMes(filtros.mesAno);
@@ -176,13 +191,13 @@ export class TransactionsRepository {
       return [id];
     }
 
-    const totalCentavos = reaisParaCentavos(valorTotal);
+    const totalCentavos = Math.round(valorTotal);
     const parcelaBaseCentavos = Math.floor(totalCentavos / numeroParcelas);
     const diferencaCentavos = totalCentavos - (parcelaBaseCentavos * numeroParcelas);
     const primeiraParcelaCentavos = parcelaBaseCentavos + diferencaCentavos;
 
-    const valorParcelaBase = centavosParaReais(parcelaBaseCentavos);
-    const primeiraParcelaValor = centavosParaReais(primeiraParcelaCentavos);
+    const valorParcelaBase = parcelaBaseCentavos;
+    const primeiraParcelaValor = primeiraParcelaCentavos;
 
     const grupoId = `parc_${Date.now()}_${Math.random().toString(36).substring(2, 8)}`;
     const idsCriados: number[] = [];
@@ -406,22 +421,6 @@ export class TransactionsRepository {
     const limiteIso = dataLimite.toISOString();
     const result = await this.db.runAsync('DELETE FROM transacoes WHERE deleted_at IS NOT NULL AND deleted_at < ?;', limiteIso);
     return result.changes;
-  }
-
-  async duplicar(id: number, novaData?: string): Promise<number> {
-    const original = await this.obterPorId(id);
-    if (!original) throw new Error('Transação não encontrada');
-
-    return await this.criar({
-      valor: original.valor,
-      tipo: original.tipo,
-      categoria_id: original.categoria_id,
-      data: novaData || original.data,
-      descricao: original.descricao ? `${original.descricao} (Cópia)` : '',
-      conciliado: 0,
-      origem: 'manual',
-      pago: original.pago ?? 1,
-    });
   }
 
   async inserirEmLote(transacoes: Omit<Transacao, 'id'>[]): Promise<number> {
@@ -911,8 +910,8 @@ export class TransactionsRepository {
       const mediaHistorica = Math.round((hist.total / hist.meses) * 100) / 100;
       const diferenca = subtrairMoeda(atual.total, mediaHistorica);
 
-      // Regra de anomalia: gasto >= R$ 80, média histórica >= R$ 40, aumento >= 35%, e diferença >= R$ 50
-      if (atual.total >= 80 && mediaHistorica >= 40 && diferenca >= 50) {
+      // Regra de anomalia: gasto >= R$ 80, média histórica >= R$ 40, aumento >= 35%, e diferença >= R$ 50 (em centavos)
+      if (atual.total >= 8000 && mediaHistorica >= 4000 && diferenca >= 5000) {
         const percentualAcima = Math.round(((atual.total - mediaHistorica) / mediaHistorica) * 100);
         if (percentualAcima >= 35) {
           anomalias.push({
@@ -930,80 +929,6 @@ export class TransactionsRepository {
     }
 
     return anomalias.sort((a, b) => b.percentualAcima - a.percentualAcima);
-  }
-
-  /**
-   * Cálculo de Teto Diário Seguro (Burn Rate) até o fim do mês
-   */
-  async obterTetoDiario(mesAno: string): Promise<TetoDiarioInfo> {
-    const hoje = new Date();
-    const [ano, mes] = mesAno.split('-').map(Number);
-    const diasNoMes = new Date(ano, mes, 0).getDate();
-
-    let diaAtual = hoje.getDate();
-    const anoHoje = hoje.getFullYear();
-    const mesHoje = hoje.getMonth() + 1;
-
-    // Se o mês selecionado for passado ou futuro
-    if (ano < anoHoje || (ano === anoHoje && mes < mesHoje)) {
-      // Mês já passou
-      return { diasRestantes: 0, disponivelDiario: 0, diasNoMes, diaAtual: diasNoMes };
-    } else if (ano > anoHoje || (ano === anoHoje && mes > mesHoje)) {
-      // Mês futuro completo
-      diaAtual = 1;
-    }
-
-    const diasRestantes = Math.max(1, diasNoMes - diaAtual + 1);
-
-    // Saldo previsto restante (saldo previsto positivo do mês dividido pelos dias restantes)
-    const resumo = await this.obterResumoMes(mesAno);
-    const disponivelDiario = resumo.saldo > 0 ? Math.round((resumo.saldo / diasRestantes) * 100) / 100 : 0;
-
-    return {
-      diasRestantes,
-      disponivelDiario,
-      diasNoMes,
-      diaAtual,
-    };
-  }
-
-  async buscarCorrespondenteConciliacao(
-    dataIso: string,
-    valor: number,
-    tipo: TipoTransacao,
-    diasTolerancia: number = 3
-  ): Promise<Transacao | null> {
-    const sql = `
-      SELECT 
-        t.id,
-        t.valor,
-        t.tipo,
-        t.categoria_id,
-        t.data,
-        t.descricao,
-        t.conciliado,
-        t.origem,
-        t.pago,
-        c.nome as categoria_nome
-      FROM transacoes t
-      INNER JOIN categorias c ON t.categoria_id = c.id
-      WHERE t.tipo = ?
-        AND t.deleted_at IS NULL
-        AND ABS(t.valor - ?) < 0.05
-        AND ABS(julianday(t.data) - julianday(?)) <= ?
-      ORDER BY ABS(julianday(t.data) - julianday(?)) ASC
-      LIMIT 1;
-    `;
-
-    const row = await this.db.getFirstAsync<Transacao>(
-      sql,
-      tipo,
-      valor,
-      dataIso,
-      diasTolerancia,
-      dataIso
-    );
-    return row || null;
   }
 
   /**

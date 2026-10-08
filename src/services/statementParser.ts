@@ -233,7 +233,7 @@ export class StatementParser {
       if (isNaN(valorRaw) || valorRaw === 0) continue;
 
       const tipo: TipoTransacao = valorRaw < 0 ? 'despesa' : 'receita';
-      const valor = Math.abs(valorRaw);
+      const valor = Math.round(Math.abs(valorRaw) * 100);
 
       // Extrai data (<DTPOSTED>) Ex: 20260925120000 ou 20260925
       const dateMatch = /<DTPOSTED>\s*(\d{4})(\d{2})(\d{2})/i.exec(bloco);
@@ -382,7 +382,7 @@ export class StatementParser {
         itens.push({
           data: dataFormatada,
           descricao: descRaw || (tipo === 'receita' ? 'Pagamento de fatura' : 'Compra no cartão'),
-          valor: Math.abs(num),
+          valor: Math.round(Math.abs(num) * 100),
           tipo,
         });
         continue;
@@ -435,7 +435,7 @@ export class StatementParser {
   }
 
   /**
-   * Converte formatos como "R$ -45,90", "-45.90", "1.250,00" para número e tipo
+   * Converte formatos como "R$ -45,90", "-45.90", "1.250,00" para número em centavos e tipo
    */
   private static normalizarValor(textoValor: string): { valor: number; tipo: TipoTransacao } {
     if (!textoValor) return { valor: 0, tipo: 'despesa' };
@@ -461,7 +461,7 @@ export class StatementParser {
     if (isNaN(valorNumerico)) return { valor: 0, tipo: 'despesa' };
 
     return {
-      valor: valorNumerico,
+      valor: Math.round(valorNumerico * 100),
       tipo: isNegativo ? 'despesa' : 'receita',
     };
   }

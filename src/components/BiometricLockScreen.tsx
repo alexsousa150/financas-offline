@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import * as LocalAuthentication from 'expo-local-authentication';
@@ -14,7 +14,7 @@ export const BiometricLockScreen: React.FC<BiometricLockScreenProps> = ({ onAute
   const [autenticando, setAutenticando] = useState(false);
   const [mensagemErro, setMensagemErro] = useState<string | null>(null);
 
-  const tentarAutenticar = async () => {
+  const tentarAutenticar = useCallback(async () => {
     try {
       setAutenticando(true);
       setMensagemErro(null);
@@ -42,16 +42,16 @@ export const BiometricLockScreen: React.FC<BiometricLockScreenProps> = ({ onAute
         AppHaptics.toqueAviso();
         setMensagemErro('Autenticação não realizada. Toque no botão para tentar novamente.');
       }
-    } catch (e: any) {
+    } catch {
       setMensagemErro('Erro ao verificar biometria.');
     } finally {
       setAutenticando(false);
     }
-  };
+  }, [onAutenticado]);
 
   useEffect(() => {
     tentarAutenticar();
-  }, []);
+  }, [tentarAutenticar]);
 
   return (
     <View style={[styles.container, { backgroundColor: theme.background }]}>

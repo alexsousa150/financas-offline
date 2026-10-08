@@ -47,3 +47,18 @@ O app utiliza um sistema de migrações atômicas em `src/database/db.ts`. Eis a
 ## 6. Dicas de Desenvolvimento
 - Se você inserir, atualizar ou remover algum dado via repositório, basta chamar `await notificarMudancaDados()` via `useApp()`. Isso muda o `refreshKey` global e notifica todas as telas que elas precisam recarregar as tabelas do banco em background sem engasgar o app.
 - Se for criar uma função para listas (FlatList), use `useCallback` nos manipuladores de evento (`onPress`) para não destruir a performance da rolagem na tela.
+
+## 7. Funcionalidades e Layout Fintech Implementados
+O sistema possui as seguintes *features* e visual premium 100% offline operacionais:
+- **Design System Fintech Dark:** Cores calibradas (`#0D0E11`, `#16181D`, `#1F222A`, `#10B981`), tipografia refinada, sombras sutis e suporte a modo escuro/claro.
+- **Navegação em 5 Abas:** `Início`, `Histórico`, `Análises`, `Importar` e `Ajustes` com indicador superior em pílula verde esmeralda no item ativo.
+- **Novo Modal de Lançamentos (`TransactionModal.tsx`):** Teclado numérico in-modal ultrarrápido (1-9, C, 0, ⌫), display de valor em tempo real, grid dinâmica em 3 colunas filtrada por tipo (Despesa vs Receita), chips de meio de pagamento, status pago/pendente, compra parcelada e botão de ação fixo no rodapé.
+- **Dashboard (Home):** Hero de Saldo Previsto (com saldo realizado em conta e toggle de privacidade de valores), Card de Teto Diário (com barra de progresso e orçamento por dia restante no mês), Carrossel de Atalhos Rápidos (Café, Uber, Almoço, etc.) e FAB circular esmeralda (`+`).
+- **Migração 11 (Categorias Fintech):** Semeia categorias completas (Alimentação, Assinaturas, Compras, Contas, Educação, Investimentos, Lazer, Mercado, Moradia, Outros, Poupança, Restaurantes, Saúde, Transporte, Freelance, Salário) com ícones e cores dedicadas.
+- **Gestão de Transações:** CRUD completo com suporte a parcelamentos (criados em lote com `grupo_parcelamento_id`), transações recorrentes e soft delete.
+- **Múltiplas Contas e Cartões:** Suporte a saldo por conta bancária e gestão de limite de cartão de crédito.
+- **Motor de Faturas (Credit Card Engine):** Agrupamento automático de gastos no crédito em Faturas baseadas no dia de fechamento e vencimento. Pagamento de faturas (registradas como `is_transfer = 1` para não duplicar o fluxo de despesa).
+- **Importação Bancária (OFX/CSV):** Parser nativo para ler arquivos bancários, validar duplicatas (via `codigo_bancario_hash`) e engine de reconciliação que tenta inferir categorias com base no histórico (`learningRepo`).
+- **Análises e Relatórios (Analytics):** Gráficos e painéis processados via SQL (sem gargalo de JS). Inclui: Gráfico de Rosca (Donut), Ranking de Categorias, Diagnóstico 50/30/20 (Essencial, Estilo de Vida, Poupança), Detecção de Anomalias e Projeção de Fluxo de Caixa Futuro.
+- **Configurações e Segurança:** Bloqueio por biometria/FaceID (App Lock), modo claro/escuro nativo, exportação manual de Backup (JSON/DB), exportação de extrato CSV e relatório PDF.
+

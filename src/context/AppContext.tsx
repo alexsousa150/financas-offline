@@ -19,13 +19,8 @@ import {
   Transacao,
   Conta,
   Cartao,
-  ResumoFinanceiro,
-  RankingCategoria,
-  TetoDiarioInfo,
-  AnaliseEssencialVsEstilo,
   Favorito,
   TipoTransacao,
-  FaturaCartao,
 } from '../types';
 import { getMesAnoAtualIso, formatarMoeda, getDataHojeIso } from '../utils/formatters';
 import { AppHaptics } from '../utils/haptics';

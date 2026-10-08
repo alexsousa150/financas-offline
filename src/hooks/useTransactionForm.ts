@@ -2,7 +2,7 @@ import { useState, useEffect, useRef, useMemo } from 'react';
 import { TextInput, Alert } from 'react-native';
 import { TipoTransacao, Transacao, FormaPagamento, Categoria } from '../types';
 import { TransactionsRepository } from '../database/transactionsRepo';
-import { converterCentavosParaValor, getDataHojeIso, formatarDataBr } from '../utils/formatters';
+import { getDataHojeIso, formatarDataBr } from '../utils/formatters';
 import { AppHaptics } from '../utils/haptics';
 import { NotificationService } from '../services/notificationService';
 
@@ -66,7 +66,7 @@ export function useTransactionForm({
 
       if (transacaoParaEdicao) {
         setTipo(transacaoParaEdicao.tipo);
-        const centavos = Math.round(transacaoParaEdicao.valor * 100).toString();
+        const centavos = Math.round(transacaoParaEdicao.valor).toString();
         setValorTextoCentavos(centavos);
         setCategoriaId(transacaoParaEdicao.categoria_id);
         setDataIso(transacaoParaEdicao.data);
@@ -79,7 +79,7 @@ export function useTransactionForm({
         setIsParcelado(false);
       } else if (transacaoParaDuplicacao) {
         setTipo(transacaoParaDuplicacao.tipo);
-        const centavos = Math.round(transacaoParaDuplicacao.valor * 100).toString();
+        const centavos = Math.round(transacaoParaDuplicacao.valor).toString();
         setValorTextoCentavos(centavos);
         setCategoriaId(transacaoParaDuplicacao.categoria_id);
         const hoje = getDataHojeIso();
@@ -167,7 +167,8 @@ export function useTransactionForm({
     }
   };
 
-  const valorNumerico = converterCentavosParaValor(valorTextoCentavos);
+  const valorCentavos = parseInt(valorTextoCentavos.replace(/\D/g, '') || '0', 10);
+  const valorNumerico = valorCentavos / 100;
   const valorParcelaCalculado = isParcelado && numeroParcelas > 0 ? valorNumerico / numeroParcelas : valorNumerico;
 
   const categoriaEscolhida = categorias.find((c) => c.id === categoriaId);
@@ -184,7 +185,7 @@ export function useTransactionForm({
   }, [categoriaEscolhida]);
 
   const handleSalvar = async () => {
-    if (valorNumerico <= 0) {
+    if (valorCentavos <= 0) {
       Alert.alert('Valor Obrigatório', 'Digite um valor maior que zero.');
       return;
     }
@@ -199,7 +200,7 @@ export function useTransactionForm({
 
       if (transacaoParaEdicao) {
         await transactionsRepo.atualizar(transacaoParaEdicao.id, {
-          valor: valorNumerico,
+          valor: valorCentavos,
           tipo,
           categoria_id: categoriaId,
           conta_id: contaId,
@@ -212,7 +213,7 @@ export function useTransactionForm({
       } else if (isParcelado && tipo === 'despesa') {
         await transactionsRepo.criarParcelado(
           {
-            valor: valorNumerico,
+            valor: valorCentavos,
             tipo,
             categoria_id: categoriaId,
             conta_id: contaId,
@@ -225,11 +226,11 @@ export function useTransactionForm({
             forma_pagamento: formaPagamento || 'cartao_credito',
           },
           numeroParcelas,
-          valorNumerico
+          valorCentavos
         );
       } else {
         await transactionsRepo.criar({
-          valor: valorNumerico,
+          valor: valorCentavos,
           tipo,
           categoria_id: categoriaId,
           conta_id: contaId,
@@ -246,7 +247,7 @@ export function useTransactionForm({
       if (lembreteAtivo && tipo === 'despesa') {
         await NotificationService.agendarLembreteVencimento(
           descricao.trim() || 'Despesa',
-          valorNumerico,
+          valorCentavos,
           dataIso
         );
       }
@@ -254,7 +255,7 @@ export function useTransactionForm({
       await AppHaptics.toqueSucesso();
       await notificarMudancaDados();
       onFechar();
-    } catch (e: any) {
+    } catch {
       Alert.alert('Erro', 'Não foi possível salvar o lançamento.');
     } finally {
       setSalvando(false);

@@ -1,9 +1,8 @@
-import { IoniconsName } from '../types';
 import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '../context/ThemeContext';
-import { RankingCategoria } from '../types';
+import { IoniconsName, RankingCategoria } from '../types';
 import { formatarMoeda, formatarVariacao } from '../utils/formatters';
 
 interface CategoryProgressBarProps {

@@ -1,4 +1,3 @@
-import { IoniconsName } from '../types';
 import React, { useState, useEffect } from 'react';
 import {
   Modal,
@@ -13,8 +12,8 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '../context/ThemeContext';
 import { useApp } from '../context/AppContext';
-import { Categoria, TipoGasto } from '../types';
-import { converterCentavosParaValor, formatarMoeda } from '../utils/formatters';
+import { Categoria, TipoGasto, IoniconsName } from '../types';
+import { formatarMoeda } from '../utils/formatters';
 import { AppHaptics } from '../utils/haptics';
 
 const CORES_PALETA = [
@@ -65,7 +64,7 @@ export const CategoryModal: React.FC<CategoryModalProps> = ({
       setIcone(categoriaParaEdicao.icone);
       setTipoGasto(categoriaParaEdicao.tipo_gasto || 'essencial');
       if (categoriaParaEdicao.limite_mensal && categoriaParaEdicao.limite_mensal > 0) {
-        setLimiteTextoCentavos(Math.round(categoriaParaEdicao.limite_mensal * 100).toString());
+        setLimiteTextoCentavos(Math.round(categoriaParaEdicao.limite_mensal).toString());
       } else {
         setLimiteTextoCentavos('');
       }
@@ -78,7 +77,8 @@ export const CategoryModal: React.FC<CategoryModalProps> = ({
     }
   }, [categoriaParaEdicao, visivel]);
 
-  const valorLimiteNumerico = converterCentavosParaValor(limiteTextoCentavos);
+  const limiteCentavos = parseInt(limiteTextoCentavos.replace(/\D/g, '') || '0', 10);
+  const valorLimiteNumerico = limiteCentavos / 100;
 
   const handleSalvar = async () => {
     if (!nome.trim()) {
@@ -88,7 +88,7 @@ export const CategoryModal: React.FC<CategoryModalProps> = ({
 
     try {
       setSalvando(true);
-      const limiteFinal = valorLimiteNumerico > 0 ? valorLimiteNumerico : null;
+      const limiteFinal = limiteCentavos > 0 ? limiteCentavos : null;
 
       if (categoriaParaEdicao) {
         await categoriesRepo.atualizar(categoriaParaEdicao.id, nome.trim(), icone, cor, limiteFinal, tipoGasto);
@@ -109,7 +109,7 @@ export const CategoryModal: React.FC<CategoryModalProps> = ({
         }
         onFechar();
       }
-    } catch (e: any) {
+    } catch {
       Alert.alert('Erro', 'Não foi possível salvar a categoria.');
     } finally {
       setSalvando(false);
@@ -142,9 +142,9 @@ export const CategoryModal: React.FC<CategoryModalProps> = ({
               <Text style={[styles.previewClassificacao, { color: tipoGasto === 'essencial' ? theme.success : theme.warning }]}>
                 {tipoGasto === 'essencial' ? '🛡️ Gasto Essencial (Sobrevivência)' : '✨ Estilo de Vida (Lazer/Supérfluo)'}
               </Text>
-              {valorLimiteNumerico > 0 && (
+              {limiteCentavos > 0 && (
                 <Text style={[styles.previewLimite, { color: theme.danger }]}>
-                  Teto mensal: {formatarMoeda(valorLimiteNumerico)}
+                  Teto mensal: {formatarMoeda(limiteCentavos)}
                 </Text>
               )}
             </View>

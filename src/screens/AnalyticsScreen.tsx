@@ -1,4 +1,3 @@
-import { IoniconsName } from '../types';
 import React, { useState, useEffect, useCallback } from 'react';
 import {
   View,
@@ -17,7 +16,7 @@ import { MonthSelector } from '../components/MonthSelector';
 import { DonutChart, FatiaGrafico } from '../components/DonutChart';
 import { CategoryProgressBar } from '../components/CategoryProgressBar';
 import { formatarMoeda } from '../utils/formatters';
-import { ComprometimentoFuturo, ProjecaoFluxoMes, AnomaliaGasto, ResumoFinanceiro, RankingCategoria, AnaliseEssencialVsEstilo } from '../types';
+import { ComprometimentoFuturo, ProjecaoFluxoMes, AnomaliaGasto, ResumoFinanceiro, RankingCategoria, AnaliseEssencialVsEstilo, IoniconsName } from '../types';
 import EmptyState from '../components/EmptyState';
 
 export const AnalyticsScreen: React.FC = () => {
@@ -133,6 +132,31 @@ export const AnalyticsScreen: React.FC = () => {
       refreshControl={<RefreshControl refreshing={atualizando} onRefresh={onRefresh} tintColor={theme.primary} />}
     >
       {/* Alternador de Visão: Mês vs Ano */}
+      {/* Topo: Título da Tela */}
+      <View style={styles.cabecalhoTopo}>
+        <View style={{ flex: 1 }}>
+          <Text style={[styles.tituloTela, { color: theme.text }]}>Análises</Text>
+          <Text style={[styles.subtituloTela, { color: theme.textSecondary }]}>
+            Inteligência e distribuição dos seus gastos
+          </Text>
+        </View>
+        <TouchableOpacity
+          onPress={handleExportarPdf}
+          disabled={gerandoPdf}
+          style={[styles.botaoExportarPdfTopo, { backgroundColor: theme.card, borderColor: theme.cardBorder }]}
+          activeOpacity={0.75}
+        >
+          {gerandoPdf ? (
+            <ActivityIndicator size="small" color={theme.primary} />
+          ) : (
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+              <Ionicons name="document-text-outline" size={15} color={theme.primary} />
+              <Text style={[styles.textoExportarPdfTopo, { color: theme.primary }]}>PDF</Text>
+            </View>
+          )}
+        </TouchableOpacity>
+      </View>
+
       <View style={[styles.containerTogglePeriodo, { backgroundColor: theme.inputBg }]}>
         <TouchableOpacity
           onPress={() => setModoPeriodo('mes')}
@@ -607,6 +631,37 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     paddingBottom: 110,
+    paddingTop: 8,
+  },
+  cabecalhoTopo: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 18,
+    marginBottom: 12,
+  },
+  tituloTela: {
+    fontSize: 22,
+    fontWeight: '800',
+    letterSpacing: -0.5,
+  },
+  subtituloTela: {
+    fontSize: 13,
+    marginTop: 2,
+    fontWeight: '500',
+  },
+  botaoExportarPdfTopo: {
+    paddingHorizontal: 12,
+    paddingVertical: 7,
+    borderRadius: 10,
+    borderWidth: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  textoExportarPdfTopo: {
+    fontSize: 12,
+    fontWeight: '700',
   },
   containerTogglePeriodo: {
     flexDirection: 'row',

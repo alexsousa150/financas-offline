@@ -1,4 +1,5 @@
 import React from 'react';
+import { View, StyleSheet } from 'react-native';
 import { Tabs } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '../../context/ThemeContext';
@@ -7,6 +8,18 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 export default function TabLayout() {
   const { theme } = useTheme();
   const insets = useSafeAreaInsets();
+
+  const renderTabIcon = (
+    focused: boolean,
+    color: any,
+    iconFocused: keyof typeof Ionicons.glyphMap,
+    iconOutline: keyof typeof Ionicons.glyphMap
+  ) => (
+    <View style={styles.tabIconWrapper}>
+      {focused && <View style={[styles.activePillIndicator, { backgroundColor: theme.primary }]} />}
+      <Ionicons name={focused ? iconFocused : iconOutline} size={21} color={color} />
+    </View>
+  );
 
   return (
     <Tabs
@@ -19,9 +32,9 @@ export default function TabLayout() {
           paddingBottom: insets.bottom > 0 ? insets.bottom : 8,
           paddingTop: 8,
           elevation: 8,
-          height: 62 + (insets.bottom > 0 ? insets.bottom : 0),
+          height: 64 + (insets.bottom > 0 ? insets.bottom : 0),
         },
-        tabBarActiveTintColor: theme.tabBarActive,
+        tabBarActiveTintColor: theme.primary,
         tabBarInactiveTintColor: theme.tabBarInactive,
         tabBarLabelStyle: {
           fontSize: 11,
@@ -34,38 +47,57 @@ export default function TabLayout() {
         name="index"
         options={{
           title: 'Início',
-          tabBarIcon: ({ color, focused }) => (
-            <Ionicons name={focused ? 'home' : 'home-outline'} size={22} color={color} />
-          ),
+          tabBarIcon: ({ color, focused }) =>
+            renderTabIcon(focused, color, 'home', 'home-outline'),
         }}
       />
       <Tabs.Screen
         name="history"
         options={{
           title: 'Histórico',
-          tabBarIcon: ({ color, focused }) => (
-            <Ionicons name={focused ? 'receipt' : 'receipt-outline'} size={22} color={color} />
-          ),
+          tabBarIcon: ({ color, focused }) =>
+            renderTabIcon(focused, color, 'time', 'time-outline'),
         }}
       />
       <Tabs.Screen
         name="analytics"
         options={{
-          title: 'Análise',
-          tabBarIcon: ({ color, focused }) => (
-            <Ionicons name={focused ? 'pie-chart' : 'pie-chart-outline'} size={22} color={color} />
-          ),
+          title: 'Análises',
+          tabBarIcon: ({ color, focused }) =>
+            renderTabIcon(focused, color, 'pie-chart', 'pie-chart-outline'),
         }}
       />
       <Tabs.Screen
         name="import"
         options={{
-          title: 'Extrato',
-          tabBarIcon: ({ color, focused }) => (
-            <Ionicons name={focused ? 'document-text' : 'document-text-outline'} size={22} color={color} />
-          ),
+          title: 'Importar',
+          tabBarIcon: ({ color, focused }) =>
+            renderTabIcon(focused, color, 'business', 'business-outline'),
+        }}
+      />
+      <Tabs.Screen
+        name="settings"
+        options={{
+          title: 'Ajustes',
+          tabBarIcon: ({ color, focused }) =>
+            renderTabIcon(focused, color, 'settings', 'settings-outline'),
         }}
       />
     </Tabs>
   );
 }
+
+const styles = StyleSheet.create({
+  tabIconWrapper: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    height: 28,
+  },
+  activePillIndicator: {
+    width: 22,
+    height: 3,
+    borderRadius: 1.5,
+    position: 'absolute',
+    top: -7,
+  },
+});

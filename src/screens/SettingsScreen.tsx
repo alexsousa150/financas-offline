@@ -1,4 +1,3 @@
-import { IoniconsName } from '../types';
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
   View,
@@ -19,7 +18,7 @@ import * as FileSystem from 'expo-file-system/legacy';
 import * as LocalAuthentication from 'expo-local-authentication';
 import { useTheme } from '../context/ThemeContext';
 import { useApp } from '../context/AppContext';
-import { BackupData, Transacao } from '../types';
+import { BackupData, Transacao, IoniconsName } from '../types';
 import { NotificationService } from '../services/notificationService';
 import { AppHaptics } from '../utils/haptics';
 import { APP_VERSION, APP_BUILD } from '../utils/version';
@@ -311,7 +310,7 @@ export const SettingsScreen: React.FC = () => {
       setExportandoCsv(true);
       await backupRepo.exportarPlanilhaCsv();
       AppHaptics.toqueSucesso();
-    } catch (e: any) {
+    } catch {
       Alert.alert('Erro ao exportar', 'Não foi possível gerar a planilha.');
     } finally {
       setExportandoCsv(false);
@@ -332,7 +331,7 @@ export const SettingsScreen: React.FC = () => {
               await favoritesRepo.excluir(id);
               await carregarFavoritos();
               AppHaptics.toqueSucesso();
-            } catch (e) {
+            } catch {
               Alert.alert('Erro', 'Não foi possível remover o favorito.');
             }
           },
@@ -356,7 +355,7 @@ export const SettingsScreen: React.FC = () => {
               await notificarMudancaDados();
               AppHaptics.toqueSucesso();
               Alert.alert('Histórico limpo', 'Os lançamentos foram removidos com sucesso.');
-            } catch (e) {
+            } catch {
               Alert.alert('Erro', 'Não foi possível limpar os lançamentos.');
             }
           },
@@ -400,7 +399,7 @@ export const SettingsScreen: React.FC = () => {
                 'Backup restaurado',
                 `${stats.categoriasRestauradas} categorias e ${stats.transacoesRestauradas} lançamentos foram recuperados.`
               );
-            } catch (e: any) {
+            } catch {
               Alert.alert('Erro ao restaurar', 'O arquivo selecionado não é um backup válido.');
             } finally {
               setRestaurando(false);

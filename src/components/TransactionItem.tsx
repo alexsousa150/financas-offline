@@ -1,8 +1,7 @@
-import { IoniconsName } from '../types';
 import React from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, Alert } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { Transacao } from '../types';
+import { Transacao, IoniconsName } from '../types';
 import { useTheme } from '../context/ThemeContext';
 import { useApp } from '../context/AppContext';
 import { formatarMoeda, formatarDataBr } from '../utils/formatters';

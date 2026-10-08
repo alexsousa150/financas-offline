@@ -199,13 +199,6 @@ export interface ComprometimentoFuturo {
   qtdParcelas: number;
 }
 
-export interface TetoDiarioInfo {
-  diasRestantes: number;
-  disponivelDiario: number; // quanto pode gastar por dia até o fim do mês
-  diasNoMes: number;
-  diaAtual: number;
-}
-
 export interface AnaliseEssencialVsEstilo {
   totalEssencial: number;
   totalEstiloDeVida: number;

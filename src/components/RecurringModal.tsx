@@ -1,5 +1,4 @@
-import { IoniconsName } from '../types';
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   Modal,
   View,
@@ -16,8 +15,8 @@ import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '../context/ThemeContext';
 import { useApp } from '../context/AppContext';
 import { LancamentoRecorrente } from '../database/recurringRepo';
-import { TipoTransacao } from '../types';
-import { formatarMoeda, converterCentavosParaValor } from '../utils/formatters';
+import { TipoTransacao, IoniconsName } from '../types';
+import { formatarMoeda } from '../utils/formatters';
 import { AppHaptics } from '../utils/haptics';
 
 const DIAS_RAPIDOS_VENCIMENTO = [1, 5, 10, 12, 15, 20, 25, 28, 30];
@@ -43,14 +42,14 @@ export const RecurringModal: React.FC<RecurringModalProps> = ({ visivel, onFecha
   const [descricao, setDescricao] = useState('');
   const [salvando, setSalvando] = useState(false);
 
-  const carregar = async () => {
+  const carregar = useCallback(async () => {
     try {
       const dados = await recurringRepo.listar();
       setLista(dados);
     } catch (e) {
       console.error(e);
     }
-  };
+  }, [recurringRepo]);
 
   const fecharFormulario = () => {
     setModoFormulario(false);
@@ -65,7 +64,7 @@ export const RecurringModal: React.FC<RecurringModalProps> = ({ visivel, onFecha
       carregar();
       fecharFormulario();
     }
-  }, [visivel]);
+  }, [visivel, carregar]);
 
   const abrirNovo = () => {
     AppHaptics.toqueLeve();
@@ -84,17 +83,18 @@ export const RecurringModal: React.FC<RecurringModalProps> = ({ visivel, onFecha
     AppHaptics.toqueLeve();
     setItemParaEdicao(item);
     setTipo(item.tipo);
-    setValorTextoCentavos(Math.round(item.valor * 100).toString());
+    setValorTextoCentavos(Math.round(item.valor).toString());
     setDescricao(item.descricao);
     setDiaVencimento(String(item.dia_vencimento));
     setCategoriaId(item.categoria_id);
     setModoFormulario(true);
   };
 
-  const valorNumerico = converterCentavosParaValor(valorTextoCentavos);
+  const valorCentavos = parseInt(valorTextoCentavos.replace(/\D/g, '') || '0', 10);
+  const valorNumerico = valorCentavos / 100;
 
   const handleSalvar = async () => {
-    if (valorNumerico <= 0) {
+    if (valorCentavos <= 0) {
       Alert.alert('Valor necessário', 'Digite um valor maior que zero para a conta.');
       return;
     }
@@ -109,7 +109,7 @@ export const RecurringModal: React.FC<RecurringModalProps> = ({ visivel, onFecha
 
       if (itemParaEdicao) {
         await recurringRepo.atualizar(itemParaEdicao.id, {
-          valor: valorNumerico,
+          valor: valorCentavos,
           tipo,
           categoria_id: categoriaId,
           descricao: descricao.trim() || (tipo === 'receita' ? 'Renda fixa' : 'Conta fixa'),
@@ -117,7 +117,7 @@ export const RecurringModal: React.FC<RecurringModalProps> = ({ visivel, onFecha
         });
       } else {
         await recurringRepo.criar({
-          valor: valorNumerico,
+          valor: valorCentavos,
           tipo,
           categoria_id: categoriaId,
           descricao: descricao.trim() || (tipo === 'receita' ? 'Renda fixa' : 'Conta fixa'),
@@ -131,7 +131,7 @@ export const RecurringModal: React.FC<RecurringModalProps> = ({ visivel, onFecha
       AppHaptics.toqueSucesso();
       await carregar();
       fecharFormulario();
-    } catch (e: any) {
+    } catch {
       Alert.alert('Erro ao salvar', 'Não foi possível salvar esta conta fixa.');
     } finally {
       setSalvando(false);

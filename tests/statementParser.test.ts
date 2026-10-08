@@ -61,21 +61,21 @@ describe('StatementParser - Processamento de Extratos OFX e CSV', () => {
 
     // Item 1: Despesa
     assert.strictEqual(itens[0].descricao, 'SUPERMERCADO DIA');
-    assert.strictEqual(itens[0].valor, 125.8);
+    assert.strictEqual(itens[0].valor, 12580);
     assert.strictEqual(itens[0].tipo, 'despesa');
     assert.strictEqual(itens[0].data, '2026-09-15');
     assert.strictEqual(itens[0].fitId, '202609150001');
 
     // Item 2: Receita
     assert.strictEqual(itens[1].descricao, 'TED SALARIO EMPRESA');
-    assert.strictEqual(itens[1].valor, 4500);
+    assert.strictEqual(itens[1].valor, 450000);
     assert.strictEqual(itens[1].tipo, 'receita');
     assert.strictEqual(itens[1].data, '2026-09-05');
     assert.strictEqual(itens[1].fitId, '202609050002');
 
     // Item 3: Entidades HTML decodificadas (&amp; -> &)
     assert.strictEqual(itens[2].descricao, 'FARMACIA & DROGASIL');
-    assert.strictEqual(itens[2].valor, 32.5);
+    assert.strictEqual(itens[2].valor, 3250);
     assert.strictEqual(itens[2].tipo, 'despesa');
   });
 
@@ -84,12 +84,12 @@ describe('StatementParser - Processamento de Extratos OFX e CSV', () => {
     assert.strictEqual(itens.length, 3);
 
     assert.strictEqual(itens[0].descricao, 'MERCADO EXTRA');
-    assert.strictEqual(itens[0].valor, 150);
+    assert.strictEqual(itens[0].valor, 15000);
     assert.strictEqual(itens[0].tipo, 'despesa');
     assert.strictEqual(itens[0].data, '2026-09-15');
 
     assert.strictEqual(itens[1].descricao, 'SALARIO');
-    assert.strictEqual(itens[1].valor, 3200.5);
+    assert.strictEqual(itens[1].valor, 320050);
     assert.strictEqual(itens[1].tipo, 'receita');
   });
 
@@ -149,12 +149,12 @@ describe('StatementParser - Processamento de Extratos OFX e CSV', () => {
 
     // Compra no cartão (amount 24.90) deve ser despesa
     assert.strictEqual(resultado.itens[0].descricao, 'Uber');
-    assert.strictEqual(resultado.itens[0].valor, 24.9);
+    assert.strictEqual(resultado.itens[0].valor, 2490);
     assert.strictEqual(resultado.itens[0].tipo, 'despesa');
 
     // Pagamento de fatura (amount -500.00) deve ser receita/crédito
     assert.strictEqual(resultado.itens[2].descricao, 'Pagamento de fatura');
-    assert.strictEqual(resultado.itens[2].valor, 500);
+    assert.strictEqual(resultado.itens[2].valor, 50000);
     assert.strictEqual(resultado.itens[2].tipo, 'receita');
   });
 
@@ -168,11 +168,11 @@ describe('StatementParser - Processamento de Extratos OFX e CSV', () => {
     assert.strictEqual(resultado.itens.length, 2);
 
     assert.strictEqual(resultado.itens[0].descricao, 'TRANSFERENCIA PIX RECEBIDA');
-    assert.strictEqual(resultado.itens[0].valor, 850);
+    assert.strictEqual(resultado.itens[0].valor, 85000);
     assert.strictEqual(resultado.itens[0].tipo, 'receita');
 
     assert.strictEqual(resultado.itens[1].descricao, 'PAGAMENTO CONTA ENERGIA');
-    assert.strictEqual(resultado.itens[1].valor, 120.4);
+    assert.strictEqual(resultado.itens[1].valor, 12040);
     assert.strictEqual(resultado.itens[1].tipo, 'despesa');
   });
 });

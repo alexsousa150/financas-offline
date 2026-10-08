@@ -177,24 +177,24 @@ export function centavosParaReais(centavos: number): number {
 }
 
 /**
- * Soma valores monetários com precisão absoluta de centavos
+ * Soma valores monetários em centavos com precisão absoluta
  */
 export function somarMoeda(a: number, b: number): number {
-  return (Math.round(a * 100) + Math.round(b * 100)) / 100;
+  return Math.round(a || 0) + Math.round(b || 0);
 }
 
 /**
- * Subtrai valores monetários com precisão absoluta de centavos
+ * Subtrai valores monetários em centavos com precisão absoluta
  */
 export function subtrairMoeda(a: number, b: number): number {
-  return (Math.round(a * 100) - Math.round(b * 100)) / 100;
+  return Math.round(a || 0) - Math.round(b || 0);
 }
 
 /**
  * Multiplica valor monetário por fator com arredondamento seguro de centavos
  */
 export function multiplicarMoeda(valor: number, fator: number): number {
-  return Math.round(valor * fator * 100) / 100;
+  return Math.round((valor || 0) * fator);
 }
 
 /**

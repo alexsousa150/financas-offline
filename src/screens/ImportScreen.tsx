@@ -1,4 +1,3 @@
-import { IoniconsName } from '../types';
 import React, { useState } from 'react';
 import {
   View,
@@ -15,7 +14,7 @@ import * as DocumentPicker from 'expo-document-picker';
 import * as FileSystem from 'expo-file-system/legacy';
 import { useTheme } from '../context/ThemeContext';
 import { useApp } from '../context/AppContext';
-import { TransacaoExtratoPendente, BancoPreset } from '../types';
+import { TransacaoExtratoPendente, BancoPreset, IoniconsName } from '../types';
 import { StatementParser, BANCOS_PRESETS } from '../services/statementParser';
 import { formatarDataBr, formatarMoeda } from '../utils/formatters';
 
@@ -191,7 +190,7 @@ export const ImportScreen: React.FC = () => {
           },
         ]
       );
-    } catch (e: any) {
+    } catch {
       Alert.alert('Erro ao salvar', 'Ocorreu um erro ao gravar os lançamentos no banco de dados.');
     } finally {
       setSalvandoLote(false);

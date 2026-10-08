@@ -1,4 +1,3 @@
-import { IoniconsName } from '../types';
 import React, { useState } from 'react';
 import {
   View,
@@ -13,7 +12,7 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '../context/ThemeContext';
 import { useApp } from '../context/AppContext';
-import { Categoria } from '../types';
+import { Categoria, IoniconsName } from '../types';
 import { formatarMoeda } from '../utils/formatters';
 
 export const CategoriesScreen: React.FC = () => {
@@ -42,7 +41,7 @@ export const CategoriesScreen: React.FC = () => {
             try {
               await categoriesRepo.excluir(cat.id);
               await notificarMudancaDados();
-            } catch (e: any) {
+            } catch {
               Alert.alert('Erro', 'Não foi possível excluir a categoria.');
             }
           },
@@ -60,7 +59,7 @@ export const CategoriesScreen: React.FC = () => {
       setModalMesclarVisivel(false);
       setCategoriaParaMesclar(null);
       Alert.alert('Sucesso', 'Categorias mescladas com sucesso e histórico preservado!');
-    } catch (e: any) {
+    } catch {
       Alert.alert('Erro', 'Falha ao mesclar as categorias.');
     }
   };

@@ -150,6 +150,14 @@ export const HistoryScreen: React.FC = () => {
 
   return (
     <View style={[styles.container, { backgroundColor: theme.background }]}>
+      {/* Topo: Título da Tela */}
+      <View style={styles.cabecalhoTopo}>
+        <Text style={[styles.tituloTela, { color: theme.text }]}>Histórico</Text>
+        <Text style={[styles.subtituloTela, { color: theme.textSecondary }]}>
+          {transacoes.length} {transacoes.length === 1 ? 'lançamento no período' : 'lançamentos no período'}
+        </Text>
+      </View>
+
       {/* Seletor de Mês */}
       <MonthSelector mesAno={mesSelecionado} onMesChange={setMesSelecionado} />
 
@@ -493,6 +501,21 @@ export const HistoryScreen: React.FC = () => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
+  },
+  cabecalhoTopo: {
+    paddingHorizontal: 18,
+    paddingTop: 12,
+    paddingBottom: 4,
+  },
+  tituloTela: {
+    fontSize: 22,
+    fontWeight: '800',
+    letterSpacing: -0.5,
+  },
+  subtituloTela: {
+    fontSize: 13,
+    marginTop: 2,
+    fontWeight: '500',
   },
   barraBusca: {
     flexDirection: 'row',

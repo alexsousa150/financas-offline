@@ -17,12 +17,10 @@ export default function HomeRoute() {
     <View style={{ flex: 1, backgroundColor: theme.background, paddingTop: insets.top }}>
       <OriginalHomeScreen
         onNavegarParaHistorico={() => router.push('/history')}
-        onNavegarParaAnalise={() => router.push('/analytics')}
-        onNavegarParaImportacao={() => router.push('/import')}
         onNavegarParaCategorias={() => router.push('/categories')}
         onNavegarParaAjustes={() => router.push('/settings')}
       />
-      <FloatingActionButton onPress={abrirModalNovoLancamento} rotulo="Novo" />
+      <FloatingActionButton onPress={abrirModalNovoLancamento} />
     </View>
   );
 }

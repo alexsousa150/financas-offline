@@ -30,29 +30,29 @@ export interface ThemeColors {
 }
 
 const darkTheme: ThemeColors = {
-  background: '#0D0D11',
-  card: '#17181E',
-  cardBorder: '#23242C',
-  heroSurface: '#14151B',
-  text: '#EDEDF0',
-  textSecondary: '#8E909A',
-  textMuted: '#5A5C65',
-  primary: '#34D399',
-  primaryLight: 'rgba(52, 211, 153, 0.12)',
-  success: '#34D399',
-  successLight: 'rgba(52, 211, 153, 0.14)',
-  danger: '#F87171',
-  dangerLight: 'rgba(248, 113, 113, 0.14)',
-  warning: '#FBBF24',
-  warningLight: 'rgba(251, 191, 36, 0.14)',
-  inputBg: '#1E1F26',
-  inputBorder: '#2E2F38',
-  tabBarBg: '#0D0D11',
-  tabBarBorder: '#1A1B22',
-  tabBarActive: '#34D399',
-  tabBarInactive: '#5A5C65',
-  chipBg: '#1E1F26',
-  chipActiveBg: '#34D399',
+  background: '#0D0E11',
+  card: '#16181D',
+  cardBorder: '#1F222A',
+  heroSurface: '#16181D',
+  text: '#FFFFFF',
+  textSecondary: '#A1A1AA',
+  textMuted: '#71717A',
+  primary: '#10B981',
+  primaryLight: 'rgba(16, 185, 129, 0.15)',
+  success: '#10B981',
+  successLight: 'rgba(16, 185, 129, 0.15)',
+  danger: '#EF4444',
+  dangerLight: 'rgba(239, 68, 68, 0.15)',
+  warning: '#F59E0B',
+  warningLight: 'rgba(245, 158, 11, 0.15)',
+  inputBg: '#1A1C23',
+  inputBorder: '#262833',
+  tabBarBg: '#0D0E11',
+  tabBarBorder: '#1A1C23',
+  tabBarActive: '#10B981',
+  tabBarInactive: '#71717A',
+  chipBg: '#1A1C23',
+  chipActiveBg: '#10B981',
   isDark: true,
 };
 
@@ -113,7 +113,7 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         if (ativo && row && (row.valor === 'escuro' || row.valor === 'claro' || row.valor === 'sistema')) {
           setModoState(row.valor as any);
         }
-      } catch (e) {
+      } catch {
         // Silencioso se der erro na inicialização
       }
     })();

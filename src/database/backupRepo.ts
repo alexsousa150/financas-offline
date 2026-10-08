@@ -121,7 +121,7 @@ export class BackupRepository {
         const tipoStr = l.tipo === 'receita' ? 'Receita' : 'Despesa';
         const cat = (l.categoria_nome || '').replace(/;/g, ',');
         const desc = (l.descricao || '').replace(/;/g, ',');
-        const valorFormatado = l.valor.toFixed(2).replace('.', ',');
+        const valorFormatado = (l.valor / 100).toFixed(2).replace('.', ',');
         const statusStr = l.pago === 0 ? 'Pendente' : 'Pago';
         const parcelamentoStr = l.parcela_atual && l.total_parcelas ? `${l.parcela_atual}/${l.total_parcelas}` : 'À vista';
 

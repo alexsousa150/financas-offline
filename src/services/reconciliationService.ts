@@ -49,7 +49,7 @@ export class ReconciliationService {
       // Cruzamento na memória com tolerância de valor e data
       const correspondente = transacoesExistentes.find((t) => {
         if (t.tipo !== item.tipo) return false;
-        if (Math.abs(t.valor - item.valor) >= 0.05) return false;
+        if (Math.abs(t.valor - item.valor) >= 1) return false;
         const diffMs = Math.abs(new Date(t.data).getTime() - new Date(item.data).getTime());
         const diffDias = diffMs / (1000 * 60 * 60 * 24);
         return diffDias <= diasTolerancia;
