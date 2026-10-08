@@ -479,4 +479,153 @@ export class BackupRepository {
     );
     return !!(config && config.valor);
   }
+
+  /**
+   * Executa um reset completo de todas as informações inseridas pelo usuário no sistema:
+   * - Gera um backup de segurança prévio para contingência
+   * - Apaga todas as transações (incluindo lixeira e parcelas)
+   * - Apaga todos os lançamentos recorrentes (contas fixas)
+   * - Apaga importações de extrato bancário
+   * - Apaga faturas e cartões de crédito
+   * - Apaga regras aprendidas de autocategorização
+   * - Redefine as contas bancárias (restaura 'Carteira Principal' com saldo R$ 0,00)
+   * - Restaura os favoritos rápidos padrão (Almoço, Café, Padaria, Combustível, Farmácia)
+   * - Limpa limites mensais customizados nas categorias mantendo as categorias intactas
+   * - Redefine o teto diário para R$ 100,00 e zera os contadores de backup
+   */
+  async resetarDadosSistema(): Promise<void> {
+    try {
+      const transacoesAtuais = await this.db.getFirstAsync<{ count: number }>(
+        'SELECT COUNT(*) as count FROM transacoes;'
+      );
+      if (transacoesAtuais && transacoesAtuais.count > 0) {
+        const categoriasAtuais = await this.db.getAllAsync<Categoria>(
+          'SELECT id, nome, icone, cor, ordem, limite_mensal, tipo_gasto FROM categorias;'
+        );
+        const transacoesLista = await this.db.getAllAsync<Transacao>('SELECT * FROM transacoes;');
+        const recorrentesLista = await this.db.getAllAsync<LancamentoRecorrente>('SELECT * FROM lancamentos_recorrentes;');
+        const favoritosLista = await this.db.getAllAsync<Favorito>('SELECT * FROM favoritos;');
+
+        const snapshotSeguranca: BackupData = {
+          versao: 1,
+          exportadoEm: new Date().toISOString(),
+          categorias: categoriasAtuais,
+          transacoes: transacoesLista,
+          recorrentes: recorrentesLista,
+          favoritos: favoritosLista,
+        };
+
+        const jsonSeguranca = JSON.stringify(snapshotSeguranca);
+        const caminhoSeguranca = `${FileSystem.documentDirectory}backup_seguranca_pre_reset.json`;
+        await FileSystem.writeAsStringAsync(caminhoSeguranca, jsonSeguranca, {
+          encoding: FileSystem.EncodingType.UTF8,
+        });
+
+        await this.db.runAsync(
+          'INSERT OR REPLACE INTO configuracoes (chave, valor) VALUES (?, ?);',
+          'ultimo_backup_seguranca_pre_reset',
+          jsonSeguranca
+        );
+      }
+    } catch (e) {
+      console.warn('Não foi possível gerar backup automático pré-reset:', e);
+    }
+
+    await this.db.withTransactionAsync(async () => {
+      // 1. Apaga transações e dependências
+      await this.db.runAsync('DELETE FROM transacoes;');
+      await this.db.runAsync('DELETE FROM lancamentos_recorrentes;');
+      await this.db.runAsync('DELETE FROM importacoes_extrato;');
+      await this.db.runAsync('DELETE FROM faturas;');
+      await this.db.runAsync('DELETE FROM cartoes;');
+      await this.db.runAsync('DELETE FROM regras_categorizacao;');
+
+      // 2. Redefine contas bancárias para o padrão inicial limpo
+      await this.db.runAsync('DELETE FROM contas;');
+      await this.db.runAsync(
+        'INSERT INTO contas (id, nome, tipo, saldo_inicial, cor, icone) VALUES (?, ?, ?, ?, ?, ?);',
+        1,
+        'Carteira Principal',
+        'corrente',
+        0,
+        '#3b82f6',
+        'wallet'
+      );
+
+      // 3. Redefine limites de categorias e restaura visibilidade
+      await this.db.runAsync('UPDATE categorias SET limite_mensal = NULL, deleted_at = NULL;');
+
+      // 4. Redefine favoritos para o padrão
+      await this.db.runAsync('DELETE FROM favoritos;');
+      const catAlim = await this.db.getFirstAsync<{ id: number }>(
+        "SELECT id FROM categorias WHERE nome = 'Alimentação' LIMIT 1;"
+      );
+      const catTrans = await this.db.getFirstAsync<{ id: number }>(
+        "SELECT id FROM categorias WHERE nome = 'Transporte' LIMIT 1;"
+      );
+      const catSaude = await this.db.getFirstAsync<{ id: number }>(
+        "SELECT id FROM categorias WHERE nome = 'Saúde' LIMIT 1;"
+      );
+
+      const idAlim = catAlim?.id || 1;
+      const idTrans = catTrans?.id || 2;
+      const idSaude = catSaude?.id || 4;
+
+      await this.db.runAsync(
+        'INSERT INTO favoritos (titulo, valor, tipo, categoria_id, icone) VALUES (?, ?, ?, ?, ?);',
+        'Almoço',
+        2500,
+        'despesa',
+        idAlim,
+        'restaurant-outline'
+      );
+      await this.db.runAsync(
+        'INSERT INTO favoritos (titulo, valor, tipo, categoria_id, icone) VALUES (?, ?, ?, ?, ?);',
+        'Café',
+        600,
+        'despesa',
+        idAlim,
+        'cafe-outline'
+      );
+      await this.db.runAsync(
+        'INSERT INTO favoritos (titulo, valor, tipo, categoria_id, icone) VALUES (?, ?, ?, ?, ?);',
+        'Padaria',
+        1200,
+        'despesa',
+        idAlim,
+        'basket-outline'
+      );
+      await this.db.runAsync(
+        'INSERT INTO favoritos (titulo, valor, tipo, categoria_id, icone) VALUES (?, ?, ?, ?, ?);',
+        'Combustível',
+        5000,
+        'despesa',
+        idTrans,
+        'car-sport-outline'
+      );
+      await this.db.runAsync(
+        'INSERT INTO favoritos (titulo, valor, tipo, categoria_id, icone) VALUES (?, ?, ?, ?, ?);',
+        'Farmácia',
+        3000,
+        'despesa',
+        idSaude,
+        'fitness-outline'
+      );
+
+      // 5. Redefine configurações de teto diário e contadores de backup
+      await this.db.runAsync(
+        'INSERT OR REPLACE INTO configuracoes (chave, valor) VALUES (?, ?);',
+        'teto_diario_cents',
+        '10000'
+      );
+      await this.db.runAsync(
+        'INSERT OR REPLACE INTO configuracoes (chave, valor) VALUES (?, ?);',
+        'transacoes_no_ultimo_backup',
+        '0'
+      );
+      await this.db.runAsync(
+        "DELETE FROM configuracoes WHERE chave IN ('ultimo_backup_em', 'novos_lancamentos_desde_backup');"
+      );
+    });
+  }
 }

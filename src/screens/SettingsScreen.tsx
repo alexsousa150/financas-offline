@@ -39,6 +39,7 @@ export const SettingsScreen: React.FC = () => {
     exportarRelatorioPdfMes,
     mesSelecionado,
     notificarMudancaDados,
+    resetarDadosSistema,
     biometriaHabilitada,
     setBiometriaHabilitada,
     modoPrivacidade,
@@ -52,6 +53,7 @@ export const SettingsScreen: React.FC = () => {
   const [exportandoCsv, setExportandoCsv] = useState(false);
   const [exportandoPdf, setExportandoPdf] = useState(false);
   const [restaurando, setRestaurando] = useState(false);
+  const [resetando, setResetando] = useState(false);
 
   // Estados de configurações editáveis
   const [temaSelecionado, setTemaSelecionado] = useState<'escuro' | 'claro' | 'sistema'>(modo);
@@ -358,6 +360,53 @@ export const SettingsScreen: React.FC = () => {
             } catch {
               Alert.alert('Erro', 'Não foi possível limpar os lançamentos.');
             }
+          },
+        },
+      ]
+    );
+  };
+
+  const handleResetarSistema = () => {
+    Alert.alert(
+      'Zerar dados do sistema?',
+      'Esta ação apagará todas as transações, extratos importados, contas cadastradas, cartões, faturas e contas fixas cadastradas. O aplicativo voltará ao estado inicial limpo.\n\nDeseja continuar?',
+      [
+        { text: 'Cancelar', style: 'cancel' },
+        {
+          text: 'Continuar',
+          style: 'destructive',
+          onPress: () => {
+            Alert.alert(
+              'Confirmação Definitiva',
+              'Tem certeza absoluta? Todos os lançamentos e configurações adicionadas serão removidos permanentemente.',
+              [
+                { text: 'Voltar', style: 'cancel' },
+                {
+                  text: 'Sim, zerar tudo',
+                  style: 'destructive',
+                  onPress: async () => {
+                    try {
+                      setResetando(true);
+                      await resetarDadosSistema();
+                      await Promise.all([
+                        carregarResumoContasFixas(),
+                        carregarLixeira(),
+                      ]);
+                      AppHaptics.toqueSucesso();
+                      Alert.alert(
+                        'Sistema Zerado',
+                        'Todas as informações adicionadas foram removidas com sucesso e os padrões iniciais foram restaurados.'
+                      );
+                    } catch (e: any) {
+                      console.error('Erro ao resetar sistema:', e);
+                      Alert.alert('Erro', 'Não foi possível concluir o reset do sistema.');
+                    } finally {
+                      setResetando(false);
+                    }
+                  },
+                },
+              ]
+            );
           },
         },
       ]
@@ -989,8 +1038,25 @@ export const SettingsScreen: React.FC = () => {
           >
             <Ionicons name="trash-outline" size={18} color={theme.danger} style={{ marginRight: 8 }} />
             <Text style={[styles.textoBotaoAcaoSecundario, { color: theme.danger }]}>
-              Apagar histórico de lançamentos
+              Apagar apenas lançamentos
             </Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={[styles.botaoAcaoSecundario, { backgroundColor: theme.dangerLight, borderColor: theme.danger, marginTop: 10 }]}
+            onPress={handleResetarSistema}
+            disabled={resetando}
+          >
+            {resetando ? (
+              <ActivityIndicator color={theme.danger} />
+            ) : (
+              <>
+                <Ionicons name="refresh-circle-outline" size={20} color={theme.danger} style={{ marginRight: 8 }} />
+                <Text style={[styles.textoBotaoAcaoSecundario, { color: theme.danger, fontWeight: '700' }]}>
+                  Zerar dados do sistema (Limpeza completa)
+                </Text>
+              </>
+            )}
           </TouchableOpacity>
         </View>
 

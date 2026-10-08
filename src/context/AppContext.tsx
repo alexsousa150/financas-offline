@@ -103,8 +103,9 @@ interface AppContextType {
   abrirModalRecorrentes: () => void;
   fecharModalRecorrentes: () => void;
 
-  // Notificador de atualização
+  // Notificador de atualização e reset
   notificarMudancaDados: () => Promise<void>;
+  resetarDadosSistema: () => Promise<void>;
 }
 
 const AppContext = createContext<AppContextType | null>(null);
@@ -350,6 +351,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     });
   }, [carregarCategorias, carregarContas, carregarCartoes, carregarFavoritos, carregarStatusBackup, transactionsRepo]);
 
+  const resetarDadosSistema = useCallback(async () => {
+    await backupRepo.resetarDadosSistema();
+    await notificarMudancaDados();
+  }, [backupRepo, notificarMudancaDados]);
+
   return (
     <AppContext.Provider
       value={{
@@ -397,6 +403,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         autenticado,
         setAutenticado,
         notificarMudancaDados,
+        resetarDadosSistema,
       }}
     >
       {children}
