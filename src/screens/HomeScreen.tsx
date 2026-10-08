@@ -443,7 +443,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
                     { color: fav.tipo === 'despesa' ? theme.danger : theme.success },
                   ]}
                 >
-                  {formatarMoeda(fav.valor / 100)}
+                  {formatarValor(fav.valor)}
                 </Text>
               </TouchableOpacity>
             ))
@@ -479,7 +479,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
                   {item.titulo}
                 </Text>
                 <Text style={[styles.valorAtalho, { color: theme.danger }]}>
-                  {formatarMoeda(item.valor / 100)}
+                  {formatarValor(item.valor)}
                 </Text>
               </TouchableOpacity>
             ))
