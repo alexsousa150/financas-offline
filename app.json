@@ -3,7 +3,7 @@
     "name": "Finanças Offline",
     "slug": "alex-sousa",
     "scheme": "financasoffline",
-    "version": "1.6.1",
+    "version": "1.9.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "automatic",
@@ -17,7 +17,7 @@
     },
     "android": {
       "package": "com.financas.offline",
-      "versionCode": 7,
+      "versionCode": 8,
       "predictiveBackGestureEnabled": false,
       "adaptiveIcon": {
         "backgroundColor": "#121214",

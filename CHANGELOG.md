@@ -5,6 +5,17 @@ O formato é baseado no [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.
 
 ---
 
+## [1.9.0] - 2026-10-08
+
+### Pivot Visual Fintech Premium e Experiência do Usuário (UX)
+- **Novo Modal de Lançamentos com Teclado Numérico In-Modal**: Lançamento ágil de receitas e despesas com teclado numérico próprio (1-9, C, 0, ⌫), display de valor formatado em tempo real em centavos e grid dinâmica em 3 colunas por categoria.
+- **Navegação Inferior em 5 Abas**: Início, Histórico, Análises, Importar e Ajustes com indicador ativo em pílula verde esmeralda.
+- **Dashboard Renovado**: Card Hero "Saldo Previsto" com saldo realizado e alternador de visibilidade (olho de privacidade), carrossel de atalhos rápidos e FAB circular.
+- **Teto Diário Configurável**: Card de controle de gastos diários com barra de progresso, dias restantes no mês, orçamento disponível por dia e botão ao lado para ajuste rápido com modal e valores sugeridos.
+- **Migração 11 do Banco de Dados**: Semeia conjunto completo de categorias fintech com cores e ícones dedicados.
+
+---
+
 ## [1.6.1] - 2026-09-26
 
 ### Correções críticas de compilação e EAS Build
